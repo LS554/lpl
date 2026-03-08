@@ -19,7 +19,12 @@
 #include <vector>
 #include <climits>
 #include <libgen.h>
+#ifdef __APPLE__
 #include <mach-o/dyld.h>
+#endif
+#ifdef __linux__
+#include <unistd.h>
+#endif
 
 #include "lexer.h"
 #include "parser.h"
@@ -32,6 +37,7 @@
 
 static std::string getCompilerDir() {
     char path[PATH_MAX];
+#ifdef __APPLE__
     uint32_t size = sizeof(path);
     if (_NSGetExecutablePath(path, &size) == 0) {
         char real[PATH_MAX];
@@ -39,6 +45,13 @@ static std::string getCompilerDir() {
             return std::string(dirname(real));
         }
     }
+#elif defined(__linux__)
+    ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (len != -1) {
+        path[len] = '\0';
+        return std::string(dirname(path));
+    }
+#endif
     return ".";
 }
 

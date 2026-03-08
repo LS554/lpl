@@ -23,15 +23,20 @@ set(LPLC_SOURCES
 
 add_executable(lplc ${LPLC_SOURCES})
 
-llvm_map_components_to_libnames(LLVM_LIBS
-    core
-    support
-    irreader
-    passes
-    native
-    nativecodegen
-    orcjit
-)
+# Prefer the shared LLVM library when available; fall back to component libs.
+if(TARGET LLVM)
+    set(LLVM_LIBS LLVM)
+else()
+    llvm_map_components_to_libnames(LLVM_LIBS
+        core
+        support
+        irreader
+        passes
+        native
+        nativecodegen
+        orcjit
+    )
+endif()
 
 target_link_libraries(lplc PRIVATE ${LLVM_LIBS})
 target_include_directories(lplc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
