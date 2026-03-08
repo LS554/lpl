@@ -3,32 +3,33 @@
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Philosophy](#philosophy)
-3. [Getting Started](#getting-started)
-4. [Type System](#type-system)
-5. [Variables and Declarations](#variables-and-declarations)
-6. [Operators](#operators)
-7. [Control Flow](#control-flow)
-8. [Functions](#functions)
-9. [Lambdas and Closures](#lambdas-and-closures)
-10. [Classes](#classes)
-11. [Interfaces](#interfaces)
-12. [Generics and Templates](#generics-and-templates)
-13. [Error Handling](#error-handling)
-14. [Type Casting](#type-casting)
-15. [Memory Model](#memory-model)
-16. [Ownership and RAII](#ownership-and-raii)
-17. [Defer](#defer)
-18. [Namespaces](#namespaces)
-19. [Module System](#module-system)
-20. [C Interop](#c-interop)
-21. [C++ Interop](#c-interop-1)
-22. [Platform Targeting](#platform-targeting)
-23. [Standard Library](#standard-library)
-24. [Compiler Usage](#compiler-usage)
-25. [Editor Support](#editor-support)
-26. [Best Practices](#best-practices)
-27. [Design Principles](#design-principles)
+2. [Building from Source](#building-from-source)
+3. [Philosophy](#philosophy)
+4. [Getting Started](#getting-started)
+5. [Type System](#type-system)
+6. [Variables and Declarations](#variables-and-declarations)
+7. [Operators](#operators)
+8. [Control Flow](#control-flow)
+9. [Functions](#functions)
+10. [Lambdas and Closures](#lambdas-and-closures)
+11. [Classes](#classes)
+12. [Interfaces](#interfaces)
+13. [Generics and Templates](#generics-and-templates)
+14. [Error Handling](#error-handling)
+15. [Type Casting](#type-casting)
+16. [Memory Model](#memory-model)
+17. [Ownership and RAII](#ownership-and-raii)
+18. [Defer](#defer)
+19. [Namespaces](#namespaces)
+20. [Module System](#module-system)
+21. [C Interop](#c-interop)
+22. [C++ Interop](#c-interop-1)
+23. [Platform Targeting](#platform-targeting)
+24. [Standard Library](#standard-library)
+25. [Compiler Usage](#compiler-usage)
+26. [Editor Support](#editor-support)
+27. [Best Practices](#best-practices)
+28. [Design Principles](#design-principles)
 
 ---
 
@@ -97,6 +98,50 @@ Output:
 Hello, Alex
 Hello, Jordan
 ```
+
+---
+
+## Building from Source
+
+Building the LPL compiler (`lplc`) and its runtime requires **CMake 3.16+**, a **C17/C++17 toolchain**, and **LLVM** (version 15 or later recommended).
+
+### Prerequisites
+
+| Dependency | Linux (apt) | macOS (Homebrew) |
+|------------|-------------|------------------|
+| CMake | `sudo apt install cmake` | `brew install cmake` |
+| C/C++ compiler | `sudo apt install build-essential` | Xcode Command Line Tools (`xcode-select --install`) |
+| LLVM | `sudo apt install llvm-dev` | `brew install llvm` |
+
+### Linux
+
+On Linux, system-installed LLVM is found automatically by CMake:
+
+```sh
+mkdir -p build && cd build
+cmake ..
+cmake --build .
+```
+
+The resulting compiler binary is at `build/src/lplc` and the runtime libraries are under `build/runtime/`.
+
+### macOS
+
+Homebrew installs LLVM in a non-default prefix, so you must tell CMake where to find it:
+
+```sh
+mkdir -p build && cd build
+cmake .. -DCMAKE_PREFIX_PATH="$(brew --prefix llvm)"
+cmake --build .
+```
+
+To avoid passing the flag every time, export the prefix in your shell profile (`~/.zshrc` or `~/.bash_profile`):
+
+```sh
+export CMAKE_PREFIX_PATH="$(brew --prefix llvm)"
+```
+
+Then a plain `cmake ..` will work.
 
 ---
 
