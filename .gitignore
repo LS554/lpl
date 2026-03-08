@@ -2,7 +2,6 @@
 /build/
 *out/
 *node_modules/
-*zed/
 # OS
 .DS_Store
 Thumbs.db
