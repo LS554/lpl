@@ -381,6 +381,10 @@ DeclPtr Parser::parseInclude() {
         expect(TokenType::Gt, "'>'");
         inc->path = path;
         inc->isSystem = true;
+        // Auto-append .lph if extension was omitted
+        if (inc->path.size() < 4 || inc->path.substr(inc->path.size() - 4) != ".lph") {
+            inc->path += ".lph";
+        }
     } else if (check(TokenType::StringLiteral)) {
         // Local include: include "person.lph";
         auto tok = advance();
@@ -391,7 +395,8 @@ DeclPtr Parser::parseInclude() {
               + ": error: expected string or '<' after 'include'");
     }
 
-    expect(TokenType::Semicolon, "';' after include");
+    // Semicolon is optional after include directives
+    if (check(TokenType::Semicolon)) advance();
     return inc;
 }
 
