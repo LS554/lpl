@@ -44,3 +44,8 @@ Thumbs.db
 *.ll
 *.bc
 *.s
+
+# VS Code extension
+editors/vscode/lpl-lang/node_modules/
+editors/vscode/lpl-lang/out/
+editors/vscode/lpl-lang/*.vsix

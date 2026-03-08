@@ -1,0 +1,44 @@
+{
+  "name": "lpl-syntax",
+  "displayName": "LPL Language",
+  "description": "Syntax highlighting, autocomplete, and hover documentation for the LPL programming language.",
+  "version": "0.1.0",
+  "author": "London Sheard",
+  "publisher": "london-sheard",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:lpl"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "lpl",
+        "aliases": ["LPL", "lpl"],
+        "extensions": [".lpl", ".lph"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lpl",
+        "scopeName": "source.lpl",
+        "path": "./syntaxes/lpl.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0"
+  }
+}
