@@ -17,6 +17,10 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/OptimizationLevel.h"
+#include "llvm/Analysis/LoopAnalysisManager.h"
+#include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
@@ -31,9 +35,10 @@
 // Constructor and initialization
 // ============================================================
 
-CodeGen::CodeGen(const std::string& moduleName, const std::string& triple, Sema& sema)
+CodeGen::CodeGen(const std::string& moduleName, const std::string& triple,
+                 Sema& sema, int optLevel)
     : module(std::make_unique<llvm::Module>(moduleName, context)),
-      builder(context), sema(sema), targetTriple(triple) {
+      builder(context), sema(sema), targetTriple(triple), optLevel(optLevel) {
     module->setTargetTriple(llvm::Triple(targetTriple));
 }
 
@@ -2868,6 +2873,39 @@ llvm::Value* CodeGen::generateStringConcat(llvm::Value* left, llvm::Value* right
 }
 
 // ============================================================
+// Optimization passes
+// ============================================================
+
+void CodeGen::runOptimizationPasses() {
+    if (optLevel <= 0) return;
+
+    llvm::OptimizationLevel level;
+    switch (optLevel) {
+        case 1:  level = llvm::OptimizationLevel::O1; break;
+        case 2:  level = llvm::OptimizationLevel::O2; break;
+        case 3:  level = llvm::OptimizationLevel::O3; break;
+        case 4:  level = llvm::OptimizationLevel::Os; break;
+        case 5:  level = llvm::OptimizationLevel::Oz; break;
+        default: level = llvm::OptimizationLevel::O2; break;
+    }
+
+    llvm::PassBuilder PB;
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(level);
+    MPM.run(*module, MAM);
+}
+
+// ============================================================
 // Output emission
 // ============================================================
 
@@ -2883,10 +2921,15 @@ bool CodeGen::emitObjectFile(const std::string& filename) {
         return false;
     }
 
+    auto cgOptLevel = llvm::CodeGenOptLevel::None;
+    if (optLevel == 1) cgOptLevel = llvm::CodeGenOptLevel::Less;
+    else if (optLevel >= 2) cgOptLevel = llvm::CodeGenOptLevel::Default;
+
     llvm::TargetOptions opt;
     auto tm = target->createTargetMachine(llvm::Triple(targetTriple),
                                            "generic", "", opt,
-                                           llvm::Reloc::PIC_);
+                                           llvm::Reloc::PIC_,
+                                           std::nullopt, cgOptLevel);
     module->setDataLayout(tm->createDataLayout());
 
     std::error_code ec;
@@ -2931,10 +2974,15 @@ bool CodeGen::emitAssembly(const std::string& filename) {
         return false;
     }
 
+    auto cgOptLevel = llvm::CodeGenOptLevel::None;
+    if (optLevel == 1) cgOptLevel = llvm::CodeGenOptLevel::Less;
+    else if (optLevel >= 2) cgOptLevel = llvm::CodeGenOptLevel::Default;
+
     llvm::TargetOptions opt;
     auto tm = target->createTargetMachine(llvm::Triple(targetTriple),
                                            "generic", "", opt,
-                                           llvm::Reloc::PIC_);
+                                           llvm::Reloc::PIC_,
+                                           std::nullopt, cgOptLevel);
     module->setDataLayout(tm->createDataLayout());
 
     std::error_code ec;

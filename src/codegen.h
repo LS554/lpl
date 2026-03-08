@@ -29,10 +29,12 @@
 
 class CodeGen {
 public:
-    CodeGen(const std::string& moduleName, const std::string& targetTriple, Sema& sema);
+    CodeGen(const std::string& moduleName, const std::string& targetTriple,
+            Sema& sema, int optLevel = 0);
 
     bool generate(Program& prog);
     llvm::Module& getModule() { return *module; }
+    void runOptimizationPasses();
     bool emitObjectFile(const std::string& filename);
     bool emitLLVMIR(const std::string& filename);
     bool emitAssembly(const std::string& filename);
@@ -43,6 +45,7 @@ private:
     llvm::IRBuilder<> builder;
     Sema& sema;
     std::string targetTriple;
+    int optLevel;
 
     // Type mappings
     std::unordered_map<std::string, llvm::StructType*> classTypes;

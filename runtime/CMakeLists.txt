@@ -26,10 +26,13 @@ add_library(lplrt STATIC
 )
 target_include_directories(lplrt PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(lplrt PRIVATE m)
+# Size optimization + per-function sections for dead stripping
+target_compile_options(lplrt PRIVATE -Os -ffunction-sections -fdata-sections)
 
 # Collections stays as C-only (deep generic specialization in codegen)
 add_library(lpl_collections STATIC modules/lpl_collections.c)
 target_include_directories(lpl_collections PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(lpl_collections PRIVATE -Os -ffunction-sections -fdata-sections)
 
 # --- Bootstrap: compile .lpl stdlib sources with lplc ---
 set(STDLIB_DIR ${CMAKE_SOURCE_DIR}/stdlib)
@@ -42,7 +45,7 @@ foreach(mod ${STDLIB_MODULES})
     # Compile .lpl -> .o using lplc
     add_custom_command(
         OUTPUT ${STDLIB_OUT}/${mod}_lpl.o
-        COMMAND $<TARGET_FILE:lplc> ${STDLIB_DIR}/${mod}.lpl -c -o ${STDLIB_OUT}/${mod}_lpl.o
+        COMMAND $<TARGET_FILE:lplc> ${STDLIB_DIR}/${mod}.lpl -Os -c -o ${STDLIB_OUT}/${mod}_lpl.o
         DEPENDS lplc ${STDLIB_DIR}/${mod}.lpl
         COMMENT "Compiling stdlib/${mod}.lpl"
     )

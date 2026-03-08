@@ -73,6 +73,8 @@ static void printUsage(const char* prog) {
               << "  -o <name>           Output file name\n"
               << "  -target <triple>    LLVM target triple\n"
               << "  -O0,-O1,-O2,-O3    Optimization level\n"
+              << "  -Os                 Optimize for size\n"
+              << "  -Oz                 Optimize aggressively for size\n"
               << "  -g                  Emit debug information\n"
               << "  -emit-llvm          Output LLVM IR (.ll)\n"
               << "  -emit-obj, -c       Output object file only\n"
@@ -120,6 +122,8 @@ int main(int argc, char** argv) {
         else if (arg == "-O1") { optLevel = 1; }
         else if (arg == "-O2") { optLevel = 2; }
         else if (arg == "-O3") { optLevel = 3; }
+        else if (arg == "-Os") { optLevel = 4; }
+        else if (arg == "-Oz") { optLevel = 5; }
         else if (arg == "-g") { /* debug info - TODO */ }
         else if (arg == "-emit-llvm") { emitLLVM = true; }
         else if (arg == "-emit-obj" || arg == "-c") { emitObj = true; }
@@ -226,11 +230,14 @@ int main(int argc, char** argv) {
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
 
-    CodeGen codegen(primaryFile, targetTriple, sema);
+    CodeGen codegen(primaryFile, targetTriple, sema, optLevel);
     if (!codegen.generate(program)) {
         std::cerr << "error: code generation failed\n";
         return 1;
     }
+
+    // Run LLVM optimization passes on the generated IR
+    codegen.runOptimizationPasses();
 
     // Phase 5: Emit output
     if (emitLLVM) {
@@ -277,6 +284,11 @@ int main(int argc, char** argv) {
     // Core runtime + platform helpers last (resolves symbols used by modules)
     linkCmd += " -llplrt";
     linkCmd += " -lc";
+    // Strip dead code and symbols for smaller binaries
+    linkCmd += " -Wl,-dead_strip";
+    if (optLevel > 0) {
+        linkCmd += " -Wl,-x"; // strip local symbols
+    }
     std::cout << "linking: " << linkCmd << "\n";
     int linkResult = system(linkCmd.c_str());
 
