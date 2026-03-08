@@ -1,5 +1,6 @@
 # Build
 /build/
+*out/
 *node_modules/
 *zed/
 # OS
