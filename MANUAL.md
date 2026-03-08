@@ -2311,7 +2311,7 @@ lplc app.lpl -o app_release -O2
 
 ## Editor Support
 
-LPL ships with a **Language Server Protocol (LSP)** implementation and editor plugins for **VS Code** and **Zed**. The LSP server provides real-time diagnostics, hover documentation, code completion, and signature help for any editor that supports the protocol.
+LPL ships with a **Language Server Protocol (LSP)** implementation and editor plugins for **VS Code**. The LSP server provides real-time diagnostics, hover documentation, code completion, and signature help for any editor that supports the protocol.
 
 ### Language Server (LSP)
 
