@@ -97,7 +97,7 @@ struct Expr {
         Ident, This, Super,
         Binary, Unary, Assign, Ternary,
         Call, MemberAccess, MethodCall,
-        New, NewArray, Move, AddressOf, Deref, Index, Cast,
+        New, NewArray, Move, AddressOf, Deref, Index, Cast, BoundaryConvert,
         Lambda
     };
 
@@ -237,6 +237,14 @@ struct CastExpr : Expr {
     TypeSpec targetType;
     CastExpr(ExprPtr e, TypeSpec t, SourceLoc l)
         : Expr(Cast, l), operand(std::move(e)), targetType(std::move(t)) {}
+};
+
+// Type(x) — language boundary conversion (e.g. string(cptr), char*(str))
+struct BoundaryConvertExpr : Expr {
+    ExprPtr operand;
+    TypeSpec targetType;
+    BoundaryConvertExpr(ExprPtr e, TypeSpec t, SourceLoc l)
+        : Expr(BoundaryConvert, l), operand(std::move(e)), targetType(std::move(t)) {}
 };
 
 struct TernaryExpr : Expr {
@@ -605,14 +613,15 @@ struct FunctionDecl : Decl {
 
 struct ExternFuncDecl {
     TypeSpec returnType;
-    std::string name;
+    std::string name;       // LPL-side callable name
+    std::string linkName;   // linker symbol (empty = same as name)
     std::vector<Param> params;
     bool isVariadic = false;
     SourceLoc loc;
 };
 
 struct ExternBlockDecl : Decl {
-    std::string convention; // e.g., "C"
+    std::string convention; // "C" or "C++"
     std::vector<ExternFuncDecl> functions;
 
     ExternBlockDecl(SourceLoc l) : Decl(ExternBlock, l) {}
@@ -759,6 +768,10 @@ inline ExprPtr cloneExpr(const ExprPtr& e) {
         case Expr::Cast: {
             auto& x = static_cast<CastExpr&>(*e);
             return std::make_shared<CastExpr>(cloneExpr(x.operand), x.targetType, x.loc);
+        }
+        case Expr::BoundaryConvert: {
+            auto& x = static_cast<BoundaryConvertExpr&>(*e);
+            return std::make_shared<BoundaryConvertExpr>(cloneExpr(x.operand), x.targetType, x.loc);
         }
         case Expr::Lambda: {
             auto& x = static_cast<LambdaExpr&>(*e);

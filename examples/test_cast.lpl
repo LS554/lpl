@@ -1,33 +1,33 @@
-include <console.lph>;
+include <console>
 
 void main() {
-    // Test 1: as-style cast (existing)
+    // Test 1: as-style cast (int → double → int)
     int x = 42;
     double d = x as double;
     int y = d as int;
     Console.printInt(y);  // 42
 
-    // Test 2: C-style cast with primitive
+    // Test 2: as cast float → int truncation
     double pi = 3.14;
-    int truncated = (int)pi;
+    int truncated = pi as int;
     Console.printInt(truncated);  // 3
 
-    // Test 3: C-style int to double
+    // Test 3: as cast int → double → int round-trip
     int n = 7;
-    double f = (double)n;
-    int back = (int)f;
+    double f = n as double;
+    int back = f as int;
     Console.printInt(back);  // 7
 
-    // Test 4: C-style cast in expression
+    // Test 4: as cast in expression
     int a = 10;
     int b = 3;
-    double ratio = (double)a / (double)b;
-    int result = (int)ratio;
+    double ratio = (a as double) / (b as double);
+    int result = ratio as int;
     Console.printInt(result);  // 3
 
-    // Test 5: Mixed styles in same function
+    // Test 5: Chained as casts
     int val = 100;
     double asDbl = val as double;
-    int cStyle = (int)asDbl;
-    Console.printInt(cStyle);  // 100
+    int backToInt = asDbl as int;
+    Console.printInt(backToInt);  // 100
 }

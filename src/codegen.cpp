@@ -542,8 +542,13 @@ void CodeGen::generateDecl(Decl& decl) {
 
 void CodeGen::generateExternBlock(ExternBlockDecl& ext) {
     for (auto& ef : ext.functions) {
+        // Determine the linker symbol name:
+        // - If an explicit link name is provided (as "symbol"), use it
+        // - Otherwise, use the LPL-side name directly
+        std::string symbolName = ef.linkName.empty() ? ef.name : ef.linkName;
+
         // Reuse existing function if already declared (e.g., runtime builtins)
-        if (auto existing = module->getFunction(ef.name)) {
+        if (auto existing = module->getFunction(symbolName)) {
             functionMap[ef.name] = existing;
             continue;
         }
@@ -569,8 +574,14 @@ void CodeGen::generateExternBlock(ExternBlockDecl& ext) {
         auto funcRetTy = hasSret ? llvm::Type::getVoidTy(context) : retTy;
         auto ft = llvm::FunctionType::get(funcRetTy, paramTypes, ef.isVariadic);
         auto fn = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
-                                          ef.name, *module);
+                                          symbolName, *module);
+        // Map by LPL-side name so calls resolve using the callable name
         functionMap[ef.name] = fn;
+    }
+
+    // Track if C++ standard library linking is needed
+    if (ext.convention == "C++") {
+        needsCppLink = true;
     }
 }
 
@@ -1800,6 +1811,9 @@ llvm::Value* CodeGen::generateExpr(Expr& expr) {
         case Expr::Cast:
             return generateCast(static_cast<CastExpr&>(expr));
 
+        case Expr::BoundaryConvert:
+            return generateBoundaryConvert(static_cast<BoundaryConvertExpr&>(expr));
+
         case Expr::Ternary:
             return generateTernary(static_cast<TernaryExpr&>(expr));
 
@@ -2781,11 +2795,36 @@ llvm::Value* CodeGen::generateCast(CastExpr& expr) {
         return val;
     }
 
-    // char* -> string explicit conversion: string(charPtr)
+    return val;
+}
+
+llvm::Value* CodeGen::generateBoundaryConvert(BoundaryConvertExpr& expr) {
+    auto val = generateExpr(*expr.operand);
+    if (!val) return nullptr;
+
+    // char* -> string: string(charPtr)
     if (expr.targetType.kind == TypeSpec::String && !expr.targetType.pointerDepth
         && expr.operand->resolvedType.kind == TypeSpec::Char
         && expr.operand->resolvedType.pointerDepth == 1) {
         return generateCharPtrToString(val);
+    }
+
+    // string -> char*: char*(str) — extract the data pointer from LPLString
+    if (expr.operand->resolvedType.kind == TypeSpec::String
+        && !expr.operand->resolvedType.pointerDepth
+        && expr.targetType.pointerDepth > 0
+        && val->getType()->isStructTy()) {
+        auto tmp = createEntryBlockAlloca(currentFunction, val->getType(), "str.tmp");
+        builder.CreateStore(val, tmp);
+        auto dataPtr = builder.CreateStructGEP(getStringType(), tmp, 0, "str.data.ptr");
+        return builder.CreateLoad(llvm::PointerType::get(context, 0), dataPtr, "str.data");
+    }
+
+    // Pointer -> Pointer (opaque pointers — identity)
+    auto srcType = val->getType();
+    auto dstType = getLLVMType(expr.targetType);
+    if (srcType->isPointerTy() && dstType->isPointerTy()) {
+        return val;
     }
 
     return val;

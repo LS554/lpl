@@ -81,6 +81,7 @@ static void printUsage(const char* prog) {
               << "  -S                  Output assembly\n"
               << "  --dump-tokens       Dump lexer tokens\n"
               << "  --dump-ast          Dump AST (placeholder)\n"
+              << "  --check             Check for errors (no codegen), output JSON diagnostics\n"
               << "  -h, --help          Show this help\n";
 }
 
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
     bool emitAsm = false;
     bool dumpTokens = false;
     bool dumpAST = false;
+    bool checkOnly = false;
     int optLevel = 0;
 
     // Parse command-line arguments
@@ -130,6 +132,7 @@ int main(int argc, char** argv) {
         else if (arg == "-S") { emitAsm = true; }
         else if (arg == "--dump-tokens") { dumpTokens = true; }
         else if (arg == "--dump-ast") { dumpAST = true; }
+        else if (arg == "--check") { checkOnly = true; }
         else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
             return 0;
@@ -173,11 +176,17 @@ int main(int argc, char** argv) {
     Parser parser(tokens);
     Program program = parser.parse();
 
+    // Collect all diagnostics for --check mode
+    std::vector<std::string> allErrors;
+
     if (parser.hasErrors()) {
         for (auto& err : parser.getErrors()) {
-            std::cerr << err << "\n";
+            allErrors.push_back(err);
         }
-        return 1;
+        if (!checkOnly) {
+            for (auto& err : allErrors) std::cerr << err << "\n";
+            return 1;
+        }
     }
 
     // Phase 2.5: Resolve includes
@@ -186,9 +195,12 @@ int main(int argc, char** argv) {
     IncludeResolver resolver({stdlibDir}, srcDir);
     if (!resolver.resolve(program)) {
         for (auto& err : resolver.getErrors()) {
-            std::cerr << err << "\n";
+            allErrors.push_back(err);
         }
-        return 1;
+        if (!checkOnly) {
+            for (auto& err : resolver.getErrors()) std::cerr << err << "\n";
+            return 1;
+        }
     }
 
     if (dumpAST) {
@@ -219,9 +231,80 @@ int main(int argc, char** argv) {
     Sema sema;
     if (!sema.analyze(program)) {
         for (auto& err : sema.getErrors()) {
-            std::cerr << err << "\n";
+            allErrors.push_back(err);
         }
-        return 1;
+        if (!checkOnly) {
+            for (auto& err : sema.getErrors()) std::cerr << err << "\n";
+            return 1;
+        }
+    }
+
+    // --check mode: output JSON diagnostics and exit
+    if (checkOnly) {
+        std::cout << "[";
+        for (size_t i = 0; i < allErrors.size(); i++) {
+            const auto& err = allErrors[i];
+            // Parse "file:line:col: error: message" or "file:line: error: message"
+            std::string file, message;
+            int line = 1, col = 1;
+            size_t pos1 = err.find(':');
+            if (pos1 != std::string::npos) {
+                file = err.substr(0, pos1);
+                size_t pos2 = err.find(':', pos1 + 1);
+                if (pos2 != std::string::npos) {
+                    std::string after1 = err.substr(pos1 + 1, pos2 - pos1 - 1);
+                    try { line = std::stoi(after1); } catch (...) {}
+                    // Check if next part is a number (col) or "error"
+                    size_t pos3 = err.find(':', pos2 + 1);
+                    if (pos3 != std::string::npos) {
+                        std::string after2 = err.substr(pos2 + 1, pos3 - pos2 - 1);
+                        // Trim leading space
+                        size_t ns = after2.find_first_not_of(' ');
+                        if (ns != std::string::npos) after2 = after2.substr(ns);
+                        bool isCol = !after2.empty() && std::isdigit(after2[0]);
+                        if (isCol) {
+                            try { col = std::stoi(after2); } catch (...) {}
+                            // Message after "error: "
+                            size_t msgStart = err.find("error: ", pos3);
+                            if (msgStart != std::string::npos) {
+                                message = err.substr(msgStart + 7);
+                            } else {
+                                message = err.substr(pos3 + 1);
+                                size_t ms = message.find_first_not_of(' ');
+                                if (ms != std::string::npos) message = message.substr(ms);
+                            }
+                        } else {
+                            // No column — after2 starts with "error" etc.
+                            size_t msgStart = err.find("error: ", pos2);
+                            if (msgStart != std::string::npos) {
+                                message = err.substr(msgStart + 7);
+                            } else {
+                                message = err.substr(pos2 + 1);
+                            }
+                        }
+                    }
+                }
+            }
+            if (message.empty()) message = err;
+            // Escape JSON strings
+            auto jsonEscape = [](const std::string& s) -> std::string {
+                std::string r;
+                for (char c : s) {
+                    if (c == '\"') r += "\\\"";
+                    else if (c == '\\') r += "\\\\";
+                    else if (c == '\n') r += "\\n";
+                    else r += c;
+                }
+                return r;
+            };
+            if (i > 0) std::cout << ",";
+            std::cout << "{\"file\":\"" << jsonEscape(file)
+                      << "\",\"line\":" << line
+                      << ",\"col\":" << col
+                      << ",\"message\":\"" << jsonEscape(message) << "\"}";
+        }
+        std::cout << "]\n";
+        return allErrors.empty() ? 0 : 1;
     }
 
     // Phase 4: Code generation
@@ -284,6 +367,10 @@ int main(int argc, char** argv) {
     // Core runtime + platform helpers last (resolves symbols used by modules)
     linkCmd += " -llplrt";
     linkCmd += " -lc";
+    // Link C++ standard library if any extern "C++" blocks were used
+    if (codegen.requiresCppLink()) {
+        linkCmd += " -lc++";
+    }
     // Strip dead code and symbols for smaller binaries
     linkCmd += " -Wl,-dead_strip";
     if (optLevel > 0) {

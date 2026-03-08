@@ -30,14 +30,24 @@
         "scopeName": "source.lpl",
         "path": "./syntaxes/lpl.tmLanguage.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[lpl]": {
+        "editor.wordBasedSuggestions": "off",
+        "editor.suggest.snippetsPreventQuickSuggestions": false
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package"
   },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "@types/vscode": "^1.75.0",
     "typescript": "^5.0.0"
   }

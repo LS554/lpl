@@ -1,6 +1,7 @@
 # Build
 /build/
-
+*node_modules/
+*zed/
 # OS
 .DS_Store
 Thumbs.db

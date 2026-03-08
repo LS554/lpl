@@ -750,6 +750,13 @@ DeclPtr Parser::parseExternBlock() {
     expect(TokenType::KW_extern, "'extern'");
     auto block = std::make_shared<ExternBlockDecl>(loc);
     block->convention = expect(TokenType::StringLiteral, "calling convention string").value;
+
+    if (block->convention != "C" && block->convention != "C++") {
+        error(std::string(loc.file) + ":" + std::to_string(loc.line)
+              + ": error: unsupported calling convention '" + block->convention
+              + "' (expected \"C\" or \"C++\")");
+    }
+
     expect(TokenType::LBrace, "'{'");
 
     while (!check(TokenType::RBrace) && !atEnd()) {
@@ -782,6 +789,13 @@ DeclPtr Parser::parseExternBlock() {
         }
 
         expect(TokenType::RParen, "')'");
+
+        // Optional link name: as "mangled_symbol"
+        if (check(TokenType::KW_as)) {
+            advance();
+            efd.linkName = expect(TokenType::StringLiteral, "link name string").value;
+        }
+
         expect(TokenType::Semicolon, "';'");
         block->functions.push_back(std::move(efd));
     }
@@ -1484,82 +1498,50 @@ ExprPtr Parser::parsePrimary() {
         return parseLambdaExpr();
     }
 
-    // string(expr) — explicit conversion from char* to string
-    if (check(TokenType::KW_string) && peekNext().type == TokenType::LParen) {
-        advance(); // consume 'string'
-        advance(); // consume '('
-        auto operand = parseExpr();
-        expect(TokenType::RParen, "')'");
-        TypeSpec target;
-        target.kind = TypeSpec::String;
-        return std::make_shared<CastExpr>(std::move(operand), std::move(target), loc);
-    }
-
-    // C-style cast or parenthesized expression
-    if (check(TokenType::LParen)) {
-        // Detect C-style cast: (type)expr
-        // A cast looks like (primitiveType)expr or (ClassName)expr or (type*)expr
+    // Boundary conversion: Type(x) or Type*(x) — language boundary conversions
+    // string(expr): C string → LPL string
+    // char*(expr): LPL string → C string (extract raw pointer)
+    // Other type*(expr): pointer boundary conversions
+    {
+        // Check for: primitive_keyword [*...] '('
+        bool isBoundaryConvert = false;
         size_t saved = current;
-        advance(); // skip (
-
-        bool isCast = false;
         switch (peek().type) {
+            case TokenType::KW_string:
+                // string( is always a boundary conversion
+                if (peekNext().type == TokenType::LParen) {
+                    isBoundaryConvert = true;
+                }
+                break;
             case TokenType::KW_void: case TokenType::KW_bool: case TokenType::KW_byte:
             case TokenType::KW_char: case TokenType::KW_short: case TokenType::KW_int:
-            case TokenType::KW_long: case TokenType::KW_float: case TokenType::KW_double:
-            case TokenType::KW_string:
-                // Primitive type keyword — definitely a cast if followed by ) after type modifiers
-                isCast = true;
-                break;
-            case TokenType::Identifier: {
-                // Could be (ClassName)expr or (varName + ...)
-                // Lookahead: skip dotted name and pointer/ref markers, check for )
-                size_t saved2 = current;
-                advance(); // skip identifier
-                while (check(TokenType::Dot) && peekNext().type == TokenType::Identifier) {
-                    advance(); advance();
-                }
-                while (check(TokenType::Star)) advance();
-                if (check(TokenType::Ampersand)) advance();
-                if (check(TokenType::LBracket) && peekNext().type == TokenType::RBracket) {
-                    advance(); advance();
-                }
-                if (check(TokenType::RParen)) {
-                    // (Ident) — could be cast or parenthesized ident
-                    // Check what follows the ): if it's an expression start, treat as cast
-                    advance(); // skip )
-                    // Cast if followed by: identifier, literal, (, !, -, ~, new, this, null, true, false, [
-                    switch (peek().type) {
-                        case TokenType::Identifier: case TokenType::IntLiteral:
-                        case TokenType::FloatLiteral: case TokenType::StringLiteral:
-                        case TokenType::CharLiteral: case TokenType::LParen:
-                        case TokenType::Bang: case TokenType::Minus: case TokenType::Tilde:
-                        case TokenType::KW_new: case TokenType::KW_this: case TokenType::KW_null:
-                        case TokenType::KW_true: case TokenType::KW_false: case TokenType::LBracket:
-                            isCast = true;
-                            break;
-                        default:
-                            break;
+            case TokenType::KW_long: case TokenType::KW_float: case TokenType::KW_double: {
+                // Need at least one * before ( for boundary conversion: char*(x)
+                advance(); // consume type keyword
+                if (check(TokenType::Star)) {
+                    while (check(TokenType::Star)) advance();
+                    if (check(TokenType::LParen)) {
+                        isBoundaryConvert = true;
                     }
                 }
-                current = saved2;
+                current = saved;
                 break;
             }
             default:
                 break;
         }
 
-        if (isCast) {
-            current = saved;
-            advance(); // skip (
+        if (isBoundaryConvert) {
             TypeSpec targetType = parseType();
+            expect(TokenType::LParen, "'('");
+            auto operand = parseExpr();
             expect(TokenType::RParen, "')'");
-            auto operand = parseUnary(); // cast binds tightly — parse unary
-            return std::make_shared<CastExpr>(std::move(operand), std::move(targetType), loc);
+            return std::make_shared<BoundaryConvertExpr>(std::move(operand), std::move(targetType), loc);
         }
+    }
 
-        // Normal parenthesized expression (already past '(')
-        current = saved;
+    // Parenthesized expression (C-style casts removed — use 'as' for primitive casts)
+    if (check(TokenType::LParen)) {
         advance(); // skip (
         auto expr = parseExpr();
         expect(TokenType::RParen, "')'");

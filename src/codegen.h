@@ -38,6 +38,7 @@ public:
     bool emitObjectFile(const std::string& filename);
     bool emitLLVMIR(const std::string& filename);
     bool emitAssembly(const std::string& filename);
+    bool requiresCppLink() const { return needsCppLink; }
 
 private:
     llvm::LLVMContext context;
@@ -46,6 +47,7 @@ private:
     Sema& sema;
     std::string targetTriple;
     int optLevel;
+    bool needsCppLink = false;
 
     // Type mappings
     std::unordered_map<std::string, llvm::StructType*> classTypes;
@@ -136,6 +138,7 @@ private:
     llvm::Value* generateCharPtrToString(llvm::Value* charPtr);
     llvm::Value* generateStringConcat(llvm::Value* left, llvm::Value* right);
     llvm::Value* generateCast(CastExpr& expr);
+    llvm::Value* generateBoundaryConvert(BoundaryConvertExpr& expr);
     llvm::Value* generateTernary(TernaryExpr& expr);
     llvm::Value* generateIndex(IndexExpr& expr, bool wantAddress = false);
 

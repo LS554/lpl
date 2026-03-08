@@ -22,11 +22,13 @@
 18. [Namespaces](#namespaces)
 19. [Module System](#module-system)
 20. [C Interop](#c-interop)
-21. [Platform Targeting](#platform-targeting)
-22. [Standard Library](#standard-library)
-23. [Compiler Usage](#compiler-usage)
-24. [Best Practices](#best-practices)
-25. [Design Principles](#design-principles)
+21. [C++ Interop](#c-interop-1)
+22. [Platform Targeting](#platform-targeting)
+23. [Standard Library](#standard-library)
+24. [Compiler Usage](#compiler-usage)
+25. [Editor Support](#editor-support)
+26. [Best Practices](#best-practices)
+27. [Design Principles](#design-principles)
 
 ---
 
@@ -1166,34 +1168,55 @@ done
 
 ## Type Casting
 
-LPL supports two syntaxes for type conversion: the `as` keyword and C-style casts.
+LPL has two distinct casting mechanisms that map to intent:
+
+- **`x as Type`** — Primitive casts: reinterpret or widen/narrow a value within LPL's type system
+- **`Type(x)`** — Boundary conversions: construct a representation of a value in another type, typically when crossing a language boundary (into or out of C)
 
 ### The `as` Keyword
 
-Use `as` for postfix type conversion:
+Use `as` for any conversion between built-in value types where no significant work is happening beyond reinterpreting or widening/narrowing a number:
 
 ```
 int x = 42;
 double d = x as double;        // 42.0
 int y = 3.14 as int;           // 3 (truncated)
+long big = x as long;          // widening
+byte small = x as byte;        // narrowing
 ```
 
-### C-Style Casts
-
-Use parenthesized type casts for a familiar C/C++ syntax:
+`as` is a postfix operator, so it works naturally in expressions:
 
 ```
-double pi = 3.14;
-int truncated = (int)pi;       // 3
-
 int a = 10;
 int b = 3;
-double ratio = (double)a / (double)b;  // 3.333...
+double ratio = (a as double) / (b as double);  // 3.333...
+int result = ratio as int;                      // 3
 ```
+
+### Boundary Conversions: `Type(x)`
+
+Use `Type(x)` when real work is happening under the hood — allocating a buffer, extracting a pointer from a struct, or converting between LPL's type system and C's:
+
+```
+extern "C" {
+    char* getenv(char* name);
+}
+
+void main() {
+    // string → char*: extracts the raw data pointer from an LPL string
+    char* home = getenv(char*("HOME"));
+
+    // char* → string: allocates and copies into an LPL string
+    string path = string(home);
+}
+```
+
+The distinction: `as` says "treat this value as another type", while `Type(x)` says "construct a representation of this value in another type". When you cross a language boundary — into or out of C — you always use `Type(x)`. When you stay within LPL's primitive type system, you always use `as`.
 
 ### Supported Conversions
 
-Both cast forms support conversions between numeric types:
+**Primitive casts (`as`):**
 
 | From | To | Effect |
 |------|----|--------|
@@ -1204,22 +1227,15 @@ Both cast forms support conversions between numeric types:
 | `int` | `long` | Widening |
 | `long` | `int` | Narrowing |
 | `int` | `byte` | Narrowing |
-| `char*` | `string` | Explicit via `string(ptr)` |
+| `float` | `double` | Widening |
+| `double` | `float` | Narrowing |
 
-### Usage in Expressions
+**Boundary conversions (`Type(x)`):**
 
-Both forms can be used in expressions. C-style casts bind tightly:
-
-```
-// C-style cast in an expression
-double avg = (double)(a + b) / 2.0;
-
-// as-style in an expression
-double avg2 = (a + b) as double / 2.0;
-
-// Mixing styles
-int result = (int)(3.14 as double * 2.0);
-```
+| Conversion | Syntax | What Happens |
+|-----------|--------|-------------|
+| `char*` → `string` | `string(ptr)` | Calls `strlen`, allocates, copies data |
+| `string` → `char*` | `char*(str)` | Extracts raw data pointer from LPL string |
 
 ---
 
@@ -1578,22 +1594,403 @@ The compiler only links the runtime libraries for modules you actually include. 
 
 ## C Interop
 
-LPL provides direct interoperability with C through `extern` blocks:
+LPL provides direct interoperability with C through `extern "C"` blocks. Any function declared in an `extern "C"` block uses C calling conventions and links by its exact unmangled name, giving LPL seamless access to the entire C ecosystem — system calls, POSIX APIs, legacy libraries, and platform SDKs.
+
+### Declaring C Functions
 
 ```
 extern "C" {
     int printf(char* fmt, ...);
     void* malloc(long size);
     void free(void* ptr);
+    int open(char* path, int flags);
+    long read(int fd, void* buf, long count);
+    int close(int fd);
 }
 ```
 
-Functions declared in `extern "C"` blocks:
-- Use C calling conventions
-- Have no name mangling
-- Can call any C library function directly
+Functions in `extern "C"` blocks:
+- Use C calling conventions (cdecl)
+- Have **no name mangling** — the function name is the exact linker symbol
+- Support variadic arguments (`...`)
+- Can accept and return all LPL-compatible types including pointers
 
-This gives LPL seamless access to the entire C ecosystem — system calls, legacy libraries, and platform APIs.
+### Calling C Functions
+
+Once declared, extern functions are called like any other LPL function. When a C function expects `char*`, use the `char*()` boundary conversion to convert LPL strings:
+
+```
+include <console>
+
+extern "C" {
+    int abs(int x);
+    double sqrt(double x);
+    int rand();
+    void srand(int seed);
+}
+
+void main() {
+    srand(42);
+    int r = rand();
+    Console.printInt(abs(-99));
+    Console.println("");
+    Console.printFloat(sqrt(144.0));
+    Console.println("");
+}
+```
+
+### Working with C Strings
+
+C functions use `char*` instead of LPL's `string` type. Use boundary conversions to cross the boundary:
+
+- `char*(str)` — extract the raw data pointer from an LPL string
+- `string(ptr)` — allocate an LPL string from a C `char*`
+
+```
+extern "C" {
+    char* getenv(char* name);
+}
+
+void main() {
+    // char*("HOME") converts the LPL string literal to a char*
+    char* home = getenv(char*("HOME"));
+
+    // string(home) creates an LPL string from the returned char*
+    string path = string(home);
+    Console.println(path);
+}
+```
+
+> **Note:** LPL does not implicitly convert between `string` and `char*`. All conversions must be explicit using boundary conversion syntax. This makes C interop boundaries visible in the code.
+
+### Wrapping C Libraries
+
+A common pattern is to wrap C functions in an LPL class for a cleaner API:
+
+```
+extern "C" {
+    void* fopen(char* path, char* mode);
+    int fclose(void* stream);
+    int fputs(char* str, void* stream);
+    char* fgets(char* buf, int size, void* stream);
+}
+
+class CFile {
+    void* handle;
+
+    public CFile(string path, string mode) {
+        this.handle = fopen(char*(path), char*(mode));
+    }
+
+    public void write(string text) {
+        fputs(char*(text), this.handle);
+    }
+
+    public void close() {
+        fclose(this.handle);
+    }
+}
+```
+
+### Callback Functions
+
+LPL lambdas and function pointers are compatible with C function pointer parameters:
+
+```
+extern "C" {
+    void qsort(void* base, long nmemb, long size,
+               func(void*, void*) -> int compar);
+}
+```
+
+### The `as` Clause
+
+The `as` clause maps a convenient LPL-side name to a different linker symbol. This is useful when the C symbol name would be awkward or conflicts with an LPL keyword:
+
+```
+extern "C" {
+    // Call as exitProcess() in LPL, links to the C symbol "exit"
+    void exitProcess(int code) as "exit";
+
+    // Rename for clarity
+    void platformSleep(int ms) as "usleep";
+}
+
+void main() {
+    exitProcess(0);
+}
+```
+
+### Linking with C Libraries
+
+The standard C library (`-lc`) is always linked automatically. For third-party C libraries, you have two options:
+
+**Option 1:** Let `lplc` handle linking and provide library paths:
+
+```sh
+# If the library is in a standard location
+lplc app.lpl -o app
+```
+
+**Option 2:** Compile to object file and link manually for full control:
+
+```sh
+lplc app.lpl -c -o app.o
+cc app.o -o app -lsqlite3 -lcurl -llplrt -lc
+```
+
+### Complete Example: POSIX File I/O
+
+```
+include <console>
+
+extern "C" {
+    int open(char* path, int flags);
+    long write(int fd, char* buf, long count);
+    long read(int fd, char* buf, long count);
+    int close(int fd);
+}
+
+void main() {
+    // O_WRONLY | O_CREAT | O_TRUNC = 577 on macOS
+    int fd = open(char*("/tmp/lpl_test.txt"), 577);
+    if (fd >= 0) {
+        write(fd, char*("Hello from LPL!"), 15);
+        close(fd);
+        Console.println("File written");
+    }
+}
+```
+
+---
+
+## C++ Interop
+
+LPL supports calling C++ functions through `extern "C++"` blocks. Because C++ compilers apply **name mangling** to encode function signatures into symbol names, you must provide the mangled symbol name using the `as` clause.
+
+### Why Name Mangling?
+
+C++ supports function overloading — multiple functions with the same name but different parameter types. The compiler encodes the parameter types into the symbol name to distinguish them:
+
+| C++ Function | Mangled Symbol |
+|-------------|----------------|
+| `int add(int, int)` | `_Z3addii` |
+| `double add(double, double)` | `_Z3adddd` |
+| `void print(const char*)` | `_Z5printPKc` |
+
+LPL needs the mangled name to link against the correct overload.
+
+### Declaring C++ Functions
+
+```
+extern "C++" {
+    double computeArea(double radius) as "_Z11computeAread";
+    int addInts(int a, int b) as "_Z7addIntsii";
+}
+```
+
+Each declaration takes:
+- A normal LPL-style signature — the name you use to **call** the function
+- An `as "..."` clause — the **mangled symbol** as it appears in the C++ object file
+
+### Finding Mangled Names
+
+Use `nm` to list symbols in compiled C++ object files or libraries:
+
+```sh
+# List all defined symbols
+nm -j mylib.o
+
+# Search for a specific function name
+nm -j mylib.o | grep computeArea
+# Output: _Z11computeAread
+```
+
+Use `c++filt` to verify a mangled name maps to the expected signature:
+
+```sh
+echo "_Z11computeAread" | c++filt
+# Output: computeArea(double)
+
+echo "_Z7addIntsii" | c++filt
+# Output: addInts(int, int)
+```
+
+On macOS, `nm` output includes an extra leading underscore (e.g., `__Z11computeAread`). Strip the first underscore — use `_Z11computeAread` in your `as` clause.
+
+### Complete Example
+
+Given this C++ library:
+
+```cpp
+// geometry.cpp
+#include <cmath>
+
+double circleArea(double radius) {
+    return M_PI * radius * radius;
+}
+
+double distance(double x1, double y1, double x2, double y2) {
+    return std::sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1));
+}
+```
+
+Compile and check symbols:
+
+```sh
+c++ -c geometry.cpp -o geometry.o
+nm -j geometry.o | c++filt
+# circleArea(double)
+# distance(double, double, double, double)
+
+nm -j geometry.o
+# _Z10circleAread
+# _Z8distancedddd
+```
+
+Use from LPL:
+
+```
+include <console>
+
+extern "C++" {
+    double circleArea(double radius) as "_Z10circleAread";
+    double distance(double x1, double y1, double x2, double y2) as "_Z8distancedddd";
+}
+
+void main() {
+    Console.printFloat(circleArea(5.0));
+    Console.println("");
+
+    Console.printFloat(distance(0.0, 0.0, 3.0, 4.0));
+    Console.println("");
+}
+```
+
+Compile and link:
+
+```sh
+lplc app.lpl -c -o app.o
+c++ app.o geometry.o -o app -llplrt -llpl_console -lc
+./app
+# 78.5398
+# 5
+```
+
+### The Recommended Approach: C Wrappers
+
+If you **control the C++ source code**, the easiest and most maintainable approach is to export functions with C linkage from the C++ side. This avoids name mangling entirely:
+
+```cpp
+// mathutils.cpp — C++ implementation with C-linkage exports
+#include <cmath>
+#include <algorithm>
+
+extern "C" {
+    double circle_area(double radius) {
+        return M_PI * radius * radius;
+    }
+
+    double clamp_value(double val, double lo, double hi) {
+        return std::clamp(val, lo, hi);
+    }
+
+    int* sort_array(int* arr, int len) {
+        std::sort(arr, arr + len);
+        return arr;
+    }
+}
+```
+
+```
+// app.lpl — much simpler, no mangled names
+extern "C" {
+    double circle_area(double radius);
+    double clamp_value(double val, double lo, double hi);
+}
+
+void main() {
+    Console.printFloat(circle_area(10.0));
+}
+```
+
+This is **recommended** because:
+- No fragile mangled names that break across compiler versions
+- Cleaner LPL declarations
+- Works with both `cc` and `c++` linkers
+- The C++ code still has full access to C++ features internally
+
+Use `extern "C++"` for third-party C++ libraries where you cannot modify the source.
+
+### Calling C++ Class Methods
+
+C++ non-static methods receive a hidden `this` pointer as the first argument. You can call them by passing the object pointer explicitly:
+
+```cpp
+// In C++ (point.cpp)
+class Point {
+public:
+    double x, y;
+    Point(double x, double y) : x(x), y(y) {}
+    double magnitude() { return std::sqrt(x*x + y*y); }
+};
+
+// C wrapper is cleaner for classes
+extern "C" {
+    void* Point_new(double x, double y) {
+        return new Point(x, y);
+    }
+    double Point_magnitude(void* self) {
+        return static_cast<Point*>(self)->magnitude();
+    }
+    void Point_delete(void* self) {
+        delete static_cast<Point*>(self);
+    }
+}
+```
+
+```
+// In LPL
+extern "C" {
+    void* Point_new(double x, double y);
+    double Point_magnitude(void* self);
+    void Point_delete(void* self);
+}
+
+void main() {
+    void* pt = Point_new(3.0, 4.0);
+    Console.printFloat(Point_magnitude(pt));    // 5
+    Console.println("");
+    Point_delete(pt);
+}
+```
+
+### Linking
+
+When any `extern "C++"` block is present, the compiler automatically adds `-lc++` to the link command. For `extern "C"`, only the C standard library is linked.
+
+For custom libraries, compile to an object file and link manually:
+
+```sh
+# Compile LPL code
+lplc app.lpl -c -o app.o
+
+# Link with C++ library (use c++ driver for C++ standard library)
+c++ app.o -o app -L/path/to/libs -lmylib -llplrt -lc
+
+# Or with a static C++ object file directly
+c++ app.o mylib.o -o app -llplrt -lc
+```
+
+### When to Use Each Approach
+
+| Scenario | Approach |
+|----------|----------|
+| Calling C libraries (libc, SQLite, curl, etc.) | `extern "C"` |
+| Calling C++ code you control | C wrapper with `extern "C"` in C++ |
+| Calling third-party C++ libraries you can't modify | `extern "C++"` with `as` |
+| Platform-specific system calls | `extern "C"` |
+| C++ template libraries (STL, Eigen, etc.) | C wrapper (templates can't be called directly) |
 
 ---
 
@@ -1853,6 +2250,7 @@ lplc source.lpl -S -o source.s
 | `-target <triple>` | LLVM target triple for cross-compilation |
 | `--dump-tokens` | Print lexer token stream (debug) |
 | `--dump-ast` | Print parsed AST (debug) |
+| `--check` | Parse and type-check only; output diagnostics as JSON |
 
 ### Debug vs. Release
 
@@ -1862,6 +2260,149 @@ lplc app.lpl -o app_debug -g -O0
 
 # Release build — full optimization
 lplc app.lpl -o app_release -O2
+```
+
+---
+
+## Editor Support
+
+LPL ships with a **Language Server Protocol (LSP)** implementation and editor plugins for **VS Code** and **Zed**. The LSP server provides real-time diagnostics, hover documentation, code completion, and signature help for any editor that supports the protocol.
+
+### Language Server (LSP)
+
+The LPL language server lives in `editors/lpl-lsp/`. It is a Node.js server built on the `vscode-languageserver` library.
+
+#### Building
+
+```sh
+cd editors/lpl-lsp
+npm install
+npm run build
+```
+
+This produces the server entry point at `editors/lpl-lsp/out/server.js`.
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Diagnostics** | Runs `lplc --check` on every file change (debounced) and reports errors inline. |
+| **Hover** | Shows documentation for standard library classes/methods, keywords, and user-defined symbols. |
+| **Completion** | Keywords, stdlib methods (triggered by `.`), include headers (triggered by `<`), snippets, and symbols from the current file. |
+| **Signature Help** | Parameter hints for stdlib method calls (triggered by `(` and `,`). |
+
+#### Compiler Discovery
+
+The server locates the `lplc` compiler automatically using the following search order:
+
+1. The `LPL_COMPILER` environment variable (absolute path to the binary).
+2. A `build/src/lplc` path relative to the server's location (works in the source tree).
+3. `lplc` on the system `PATH`.
+
+If the compiler cannot be found, diagnostics are disabled but all other features still work. To set the compiler path explicitly:
+
+```sh
+export LPL_COMPILER=/path/to/lplc
+```
+
+#### Running Standalone
+
+The server communicates over **stdio** by default, so any editor can launch it:
+
+```sh
+node editors/lpl-lsp/out/server.js --stdio
+```
+
+### VS Code
+
+The VS Code extension is at `editors/vscode/lpl-lang/`. It provides syntax highlighting via a TextMate grammar and connects to the bundled LSP server for all smart features.
+
+#### Installing
+
+```sh
+# Build the extension
+cd editors/vscode/lpl-lang
+npm install
+npm run compile
+
+# Package into a .vsix
+npx @vscode/vsce package --allow-missing-repository
+
+# Install the .vsix in VS Code
+code --install-extension lpl-syntax-0.1.0.vsix
+```
+
+Once installed, open any `.lpl` or `.lph` file to activate the extension. The language server starts automatically.
+
+#### What You Get
+
+- **Syntax highlighting** for all LPL keywords, types, strings, comments, and operators.
+- **Real-time error underlining** as you type (powered by `lplc --check`).
+- **Hover docs** — hover over `Console.println` to see its signature and description.
+- **Autocomplete** — type `Console.` and see all available methods with documentation.
+- **Signature help** — inside `Strings.substring(`, see parameter names and types.
+- **Snippets** — type `for`, `class`, `trycatch`, `owner`, etc. and expand with Tab.
+
+### Zed
+
+Zed support is configured via the Zed settings file. The LPL language server runs as an external binary.
+
+#### Setup
+
+1. Build the LSP server (see above).
+
+2. Add the following to your Zed settings (`~/.config/zed/settings.json`):
+
+```json
+{
+  "languages": {
+    "LPL": {
+      "tab_size": 4
+    }
+  },
+  "lsp": {
+    "lpl-lsp": {
+      "binary": {
+        "path": "node",
+        "arguments": ["/absolute/path/to/editors/lpl-lsp/out/server.js", "--stdio"]
+      }
+    }
+  },
+  "language_overrides": {
+    "LPL": {
+      "language_servers": ["lpl-lsp"]
+    }
+  },
+  "file_types": {
+    "LPL": ["lpl", "lph"]
+  }
+}
+```
+
+Replace `/absolute/path/to/` with the actual path to your LPL project.
+
+3. Restart Zed. Open a `.lpl` file to see diagnostics, hover, and completion.
+
+### Other Editors
+
+Any editor with LSP support (Neovim, Helix, Sublime Text, Emacs, etc.) can use the LPL language server. The general pattern is:
+
+1. Build the server: `cd editors/lpl-lsp && npm install && npm run build`
+2. Configure your editor to launch: `node /path/to/editors/lpl-lsp/out/server.js --stdio`
+3. Associate it with `.lpl` and `.lph` file types.
+
+For example, in **Neovim** with `nvim-lspconfig`:
+
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'lpl',
+  callback = function()
+    vim.lsp.start({
+      name = 'lpl-lsp',
+      cmd = { 'node', '/path/to/editors/lpl-lsp/out/server.js', '--stdio' },
+    })
+  end,
+})
 ```
 
 ---

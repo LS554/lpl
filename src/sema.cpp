@@ -1100,6 +1100,13 @@ TypeSpec Sema::analyzeExpr(Expr& expr) {
             break;
         }
 
+        case Expr::BoundaryConvert: {
+            auto& e = static_cast<BoundaryConvertExpr&>(expr);
+            analyzeExpr(*e.operand);
+            result = e.targetType;
+            break;
+        }
+
         case Expr::Ternary: {
             auto& e = static_cast<TernaryExpr&>(expr);
             analyzeExpr(*e.condition);
