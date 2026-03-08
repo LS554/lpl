@@ -1,0 +1,28 @@
+include <console.lph>;
+
+void main() {
+    // Test 1: Half-open range (0..5 => 0,1,2,3,4)
+    Console.println("Half-open 0..5:");
+    for (int i : 0..5) {
+        Console.printInt(i);
+    }
+
+    // Test 2: Inclusive range (0..=5 => 0,1,2,3,4,5)
+    Console.println("Inclusive 0..=5:");
+    for (int i : 0..=5) {
+        Console.printInt(i);
+    }
+
+    // Test 3: Single element inclusive (3..=3 => 3)
+    Console.println("Inclusive 3..=3:");
+    for (int i : 3..=3) {
+        Console.printInt(i);
+    }
+
+    // Test 4: Empty half-open (3..3 => nothing)
+    Console.println("Half-open 3..3:");
+    for (int i : 3..3) {
+        Console.printInt(i);
+    }
+    Console.println("(empty)");
+}

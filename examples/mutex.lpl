@@ -1,0 +1,17 @@
+// LPL Mutex + Defer Example
+// Demonstrates: mutex locking with defer for guaranteed unlock
+
+include <console.lph>;
+include <sync.lph>;
+
+void main() {
+    Mutex mtx = Mutex();
+
+    // Lock + defer unlock — unlock happens automatically at scope end
+    mtx.lock();
+    defer mtx.unlock();
+
+    Console.println("locked");
+    Console.println("doing work");
+    Console.println("unlocked by defer");
+}

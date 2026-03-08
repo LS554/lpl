@@ -1,0 +1,76 @@
+// Copyright 2026 London Sheard
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// This file is part of the LPL runtime library.
+// It is exempt from the Apache 2.0 license per the runtime exception
+// in the root LICENSE file.
+
+// File — file I/O operations
+// Compiled to liblpl_files.a by lplc
+
+extern "C" {
+    string __lpl_files_read_file(string path);
+    void __lpl_files_write_file(string path, string content);
+    void __lpl_files_append_file(string path, string content);
+    bool __lpl_files_file_exists(string path);
+    long __lpl_files_file_size(string path);
+    void __lpl_files_remove_file(string path);
+}
+
+class File {
+    string path;
+
+    public File(string path) {
+        this.path = path;
+    }
+
+    public string read() {
+        return __lpl_files_read_file(this.path);
+    }
+
+    public void write(string content) {
+        __lpl_files_write_file(this.path, content);
+    }
+
+    public void append(string content) {
+        __lpl_files_append_file(this.path, content);
+    }
+
+    public bool exists() {
+        return __lpl_files_file_exists(this.path);
+    }
+
+    public void close() {
+    }
+
+    public long size() {
+        return __lpl_files_file_size(this.path);
+    }
+
+    public static string readAll(string path) {
+        return __lpl_files_read_file(path);
+    }
+
+    public static void writeAll(string path, string content) {
+        __lpl_files_write_file(path, content);
+    }
+
+    public static bool fileExists(string path) {
+        return __lpl_files_file_exists(path);
+    }
+
+    public static void remove(string path) {
+        __lpl_files_remove_file(path);
+    }
+}

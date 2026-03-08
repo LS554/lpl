@@ -1,0 +1,45 @@
+include <console.lph>;
+include <collections.lph>;
+
+void main() {
+    // Test 1: List<int> — basic add/get/size
+    List<int> nums = List<int>();
+    nums.add(10);
+    nums.add(20);
+    nums.add(30);
+    Console.printInt(nums.size());    // 3
+    Console.printInt(nums.get(0));    // 10
+    Console.printInt(nums.get(1));    // 20
+    Console.printInt(nums.get(2));    // 30
+
+    // Test 2: List<int> — set and removeAt
+    nums.set(1, 99);
+    Console.printInt(nums.get(1));    // 99
+    nums.removeAt(0);
+    Console.printInt(nums.get(0));    // 99 (was index 1, now shifted)
+    Console.printInt(nums.size());    // 2
+
+    // Test 3: List<string>
+    List<string> words = List<string>();
+    words.add("hello");
+    words.add("world");
+    Console.printInt(words.size());   // 2
+    Console.println(words.get(0));    // hello
+    Console.println(words.get(1));    // world
+
+    // Test 4: Map<string, int>
+    Map<string, int> ages = Map<string, int>();
+    ages.put("alice", 30);
+    ages.put("bob", 25);
+    Console.printInt(ages.size());          // 2
+    Console.printInt(ages.get("alice"));    // 30
+    Console.printInt(ages.get("bob"));      // 25
+
+    // Test 5: Map<string, string>
+    Map<string, string> dict = Map<string, string>();
+    dict.put("color", "blue");
+    Console.println(dict.get("color"));     // blue
+    Console.printInt(dict.size());          // 1
+
+    // RAII: all four collections cleaned up automatically here
+}

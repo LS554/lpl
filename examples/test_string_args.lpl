@@ -1,0 +1,23 @@
+include <console.lph>;
+
+// Test: modern LPL main with string[] args
+int main(int argc, string[] args) {
+    // Test 1: argc count
+    Console.printInt(argc);
+
+    // Test 2: args[0] is the program name as a string
+    Console.println(args[0]);
+
+    // Test 3: Access additional args
+    if (argc > 1) {
+        Console.println(args[1]);
+    }
+
+    // Test 4: Loop over all args
+    for (int i = 1; i < argc; i = i + 1) {
+        Console.print(args[i]);
+        Console.print(" ");
+    }
+
+    return 0;
+}

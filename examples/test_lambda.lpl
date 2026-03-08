@@ -1,0 +1,49 @@
+include <console.lph>;
+
+int apply(func(int) -> int f, int val) {
+    return f(val);
+}
+
+void main() {
+    // Test 1: auto + lambda, no capture
+    auto add = [](int x, int y) -> int {
+        return x + y;
+    };
+    Console.printInt(add(3, 4));  // 7
+
+    // Test 2: Lambda passed inline as argument
+    Console.printInt(apply([](int x) -> int { return x * 3; }, 5));  // 15
+
+    // Test 3: auto lambda passed to function
+    auto doubler = [](int x) -> int { return x * 2; };
+    Console.printInt(apply(doubler, 10));  // 20
+
+    // Test 4: auto + value capture [x]
+    auto factor = 10;
+    auto scaler = [factor](int x) -> int {
+        return x * factor;
+    };
+    Console.printInt(apply(scaler, 7));  // 70
+
+    // Test 5: auto + capture-all by value [=]
+    auto a = 100;
+    auto b = 200;
+    auto summer = [=]() -> int {
+        return a + b;
+    };
+    Console.printInt(summer());  // 300
+
+    // Test 6: auto + return type deduction
+    auto mul = [](int x, int y) {
+        return x * y;
+    };
+    Console.printInt(mul(6, 9));  // 54
+
+    // Test 7: auto + no-param lambda
+    auto getter = []() -> int { return 42; };
+    Console.printInt(getter());  // 42
+
+    // Test 8: auto + no-param, no-parens lambda
+    auto getter2 = [] -> int { return 99; };
+    Console.printInt(getter2());  // 99
+}

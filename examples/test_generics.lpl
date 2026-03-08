@@ -1,0 +1,71 @@
+include <console.lph>;
+
+// Test 1: Generic class with one type parameter
+class Box<T> {
+    T value;
+
+    Box(T v) {
+        this.value = v;
+    }
+
+    T get() {
+        return this.value;
+    }
+}
+
+// Test 2: Generic function
+T identity<T>(T x) {
+    return x;
+}
+
+// Test 3: Generic class with two type parameters
+class Pair<A, B> {
+    A first;
+    B second;
+
+    Pair(A a, B b) {
+        this.first = a;
+        this.second = b;
+    }
+
+    A getFirst() {
+        return this.first;
+    }
+
+    B getSecond() {
+        return this.second;
+    }
+}
+
+void main() {
+    // Test 1: Box<int>
+    auto b1 = new Box<int>(42);
+    Console.printInt(b1.get());  // 42
+
+    // Test 2: Box<string>
+    auto b2 = new Box<string>("hello");
+    Console.println(b2.get());  // hello
+
+    // Test 3: Generic function with int
+    int r1 = identity<int>(99);
+    Console.printInt(r1);  // 99
+
+    // Test 4: Generic function with string
+    string r2 = identity<string>("world");
+    Console.println(r2);  // world
+
+    // Test 5: Stack-allocated generic
+    Box<int> b3 = Box<int>(7);
+    Console.printInt(b3.get());  // 7
+
+    // Test 6: Two-parameter generic
+    auto p = new Pair<int, string>(100, "abc");
+    Console.printInt(p.getFirst());  // 100
+    Console.println(p.getSecond());  // abc
+
+    // Test 7: Multiple instantiations of same template
+    auto b4 = new Box<int>(0);
+    auto b5 = new Box<string>("end");
+    Console.printInt(b4.get());  // 0
+    Console.println(b5.get());  // end
+}

@@ -1,0 +1,69 @@
+include <console.lph>;
+
+void main() {
+    // Test 1: Basic switch - no fallthrough, no break needed
+    Console.println("Test 1: Basic switch");
+    int x = 2;
+    switch (x) {
+        case 1:
+            Console.println("one");
+        case 2:
+            Console.println("two");
+        case 3:
+            Console.println("three");
+        default:
+            Console.println("other");
+    }
+    // Expected: only "two"
+
+    // Test 2: Empty cases fall through naturally
+    Console.println("Test 2: Empty cases");
+    int d = 6;
+    switch (d) {
+        case 1:
+            Console.println("Monday");
+        case 6:
+        case 7:
+            Console.println("Weekend");
+        default:
+            Console.println("Other");
+    }
+    // Expected: only "Weekend"
+
+    // Test 3: Explicit fallthrough
+    Console.println("Test 3: Fallthrough");
+    int grade = 1;
+    switch (grade) {
+        case 1:
+            Console.println("Excellent");
+            fallthrough;
+        case 2:
+            Console.println("Good");
+        case 3:
+            Console.println("Average");
+    }
+    // Expected: "Excellent" then "Good"
+
+    // Test 4: Default case
+    Console.println("Test 4: Default");
+    int y = 99;
+    switch (y) {
+        case 1:
+            Console.println("One");
+        default:
+            Console.println("Default hit");
+    }
+    // Expected: "Default hit"
+
+    // Test 5: Break still works
+    Console.println("Test 5: Break");
+    int z = 1;
+    switch (z) {
+        case 1:
+            Console.println("One");
+            break;
+        case 2:
+            Console.println("Two");
+    }
+    // Expected: "One"
+}

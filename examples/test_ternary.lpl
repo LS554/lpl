@@ -1,0 +1,15 @@
+include <console.lph>;
+
+void main() {
+    int x = 10;
+    int y = 20;
+    int max = x > y ? x : y;
+    Console.printInt(max);
+
+    int min = x < y ? x : y;
+    Console.printInt(min);
+
+    // Nested ternary
+    int val = x == 10 ? (y == 20 ? 100 : 50) : 0;
+    Console.printInt(val);
+}

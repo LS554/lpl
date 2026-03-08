@@ -1,0 +1,15 @@
+include <console.lph>;
+
+int add(int a, int b = 10) {
+    return a + b;
+}
+
+int greet(int x = 1, int y = 2, int z = 3) {
+    return x + y + z;
+}
+
+void main() {
+    Console.printInt(add(5, 3));
+    Console.printInt(add(5));
+    Console.printInt(greet());
+}

@@ -1,0 +1,18 @@
+include <console.lph>;
+
+class Animal {
+    public int speak() {
+        return 1;
+    }
+}
+
+class Dog extends Animal {
+    public override int speak() {
+        return 42;
+    }
+}
+
+void main() {
+    Dog d = Dog();
+    Console.printInt(d.speak());
+}

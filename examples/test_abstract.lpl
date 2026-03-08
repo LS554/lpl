@@ -1,0 +1,38 @@
+include <console.lph>;
+
+abstract class Shape {
+    public abstract int area();
+}
+
+class Rectangle extends Shape {
+    private int w;
+    private int h;
+
+    public Rectangle(int w, int h) {
+        this.w = w;
+        this.h = h;
+    }
+
+    public override int area() {
+        return this.w * this.h;
+    }
+}
+
+class Square extends Shape {
+    private int s;
+
+    public Square(int s) {
+        this.s = s;
+    }
+
+    public override int area() {
+        return this.s * this.s;
+    }
+}
+
+void main() {
+    Rectangle r = Rectangle(3, 4);
+    Console.printInt(r.area());
+    Square sq = Square(5);
+    Console.printInt(sq.area());
+}

@@ -1,0 +1,9 @@
+include <console.lph>;
+
+void main() {
+    int sum = 0;
+    for (int i : 0..5) {
+        sum = sum + i;
+    }
+    Console.printInt(sum);
+}

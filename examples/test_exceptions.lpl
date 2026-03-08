@@ -1,0 +1,40 @@
+include <console.lph>;
+
+class Exception {
+    private int code;
+
+    public Exception(int code) {
+        this.code = code;
+    }
+
+    public int getCode() {
+        return this.code;
+    }
+}
+
+class RuntimeException extends Exception {
+    public RuntimeException(int code) {
+        super(code);
+    }
+}
+
+class ArithmeticException extends RuntimeException {
+    public ArithmeticException(int code) {
+        super(code);
+    }
+}
+
+void riskyFunction() {
+    throw new ArithmeticException(42);
+}
+
+void main() {
+    try {
+        Console.printInt(1);
+        riskyFunction();
+        Console.printInt(2);
+    } catch (ArithmeticException e) {
+        Console.printInt(e.getCode());
+    }
+    Console.printInt(3);
+}

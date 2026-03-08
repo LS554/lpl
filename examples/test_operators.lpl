@@ -1,0 +1,60 @@
+include <console.lph>;
+
+class Vec2 {
+    int x;
+    int y;
+
+    public Vec2(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public Vec2 operator+(Vec2 other) {
+        return Vec2(this.x + other.x, this.y + other.y);
+    }
+
+    public Vec2 operator-(Vec2 other) {
+        return Vec2(this.x - other.x, this.y - other.y);
+    }
+
+    public Vec2 operator*(int scalar) {
+        return Vec2(this.x * scalar, this.y * scalar);
+    }
+
+    public bool operator==(Vec2 other) {
+        return this.x == other.x && this.y == other.y;
+    }
+
+    public void print() {
+        Console.printInt(this.x);
+        Console.printInt(this.y);
+    }
+}
+
+void main() {
+    Vec2 a = Vec2(1, 2);
+    Vec2 b = Vec2(3, 4);
+
+    Vec2 c = a + b;
+    c.print();
+
+    Vec2 d = c - a;
+    d.print();
+
+    Vec2 e = a * 5;
+    e.print();
+
+    bool eq = a == b;
+    if (eq) {
+        Console.printInt(1);
+    } else {
+        Console.printInt(0);
+    }
+
+    bool eq2 = a == Vec2(1, 2);
+    if (eq2) {
+        Console.printInt(1);
+    } else {
+        Console.printInt(0);
+    }
+}

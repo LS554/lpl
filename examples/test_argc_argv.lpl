@@ -1,0 +1,27 @@
+include <console.lph>;
+
+// Test: C++ style main with argc/argv
+int main(int argc, char** argv) {
+    // Test 1: argc reflects actual argument count
+    Console.printInt(argc);
+
+    // Test 2: argv[0] is the program name (accessible as char*)
+    char* progName = argv[0];
+
+    // Test 3: Convert char* to string explicitly
+    string name = string(argv[0]);
+    
+    // Test 4: Pass char* to println via explicit string() conversion
+    if (argc > 1) {
+        Console.println(string(argv[1]));
+    }
+
+    // Test 5: Loop over all arguments
+    for (int i = 1; i < argc; i = i + 1) {
+        Console.print(string(argv[i]));
+        Console.print(" ");
+    }
+
+    // Test 6: Return exit code
+    return 0;
+}

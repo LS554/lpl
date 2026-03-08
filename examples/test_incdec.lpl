@@ -1,0 +1,35 @@
+include <console.lph>;
+
+void main() {
+    // Test 1: Postfix ++ in for loop
+    Console.println("Test 1: for loop with i++");
+    for (int i = 0; i < 5; i++) {
+        Console.printInt(i);
+    }
+
+    // Test 2: Postfix --
+    Console.println("Test 2: postfix --");
+    int x = 5;
+    x--;
+    Console.printInt(x);  // 4
+
+    // Test 3: Prefix ++
+    Console.println("Test 3: prefix ++");
+    int y = 10;
+    ++y;
+    Console.printInt(y);  // 11
+
+    // Test 4: Prefix --
+    Console.println("Test 4: prefix --");
+    int z = 10;
+    --z;
+    Console.printInt(z);  // 9
+
+    // Test 5: In while loop
+    Console.println("Test 5: while with ++");
+    int n = 0;
+    while (n < 3) {
+        Console.printInt(n);
+        n++;
+    }
+}

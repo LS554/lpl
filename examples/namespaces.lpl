@@ -1,0 +1,44 @@
+// LPL Namespace Example
+// Demonstrates: file-level namespaces, block-level namespaces,
+//               qualified name access, namespace-aware types
+
+include <console.lph>;
+
+// Block-level namespace
+namespace App.Models {
+    class Greeter {
+        string prefix;
+
+        public Greeter(string prefix) {
+            this.prefix = prefix;
+        }
+
+        public void greet(string name) {
+            Console.println(this.prefix + ", " + name + "!");
+        }
+    }
+}
+
+// Another block namespace
+namespace App.Utils {
+    class Formatter {
+        public Formatter() {}
+
+        public string wrap(string text) {
+            return "[" + text + "]";
+        }
+    }
+}
+
+void main() {
+    // Stack-allocated objects with qualified type names
+    App.Models.Greeter g = App.Models.Greeter("Hello");
+    g.greet("World");
+
+    App.Models.Greeter g2 = App.Models.Greeter("Welcome");
+    g2.greet("LPL");
+
+    // Heap-allocated namespaced object
+    owner App.Utils.Formatter* fmt = new App.Utils.Formatter();
+    Console.println(fmt.wrap("namespaces work"));
+}

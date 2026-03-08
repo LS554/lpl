@@ -1,0 +1,9 @@
+include <console.lph>;
+
+void main() {
+    int i = 0;
+    do {
+        i = i + 1;
+    } while (i < 5);
+    Console.printInt(i);
+}

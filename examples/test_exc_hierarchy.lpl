@@ -1,0 +1,34 @@
+include <console.lph>;
+
+class Exception {
+    private int code;
+
+    public Exception(int code) {
+        this.code = code;
+    }
+
+    public int getCode() {
+        return this.code;
+    }
+}
+
+class RuntimeException extends Exception {
+    public RuntimeException(int code) {
+        super(code);
+    }
+}
+
+class ArithmeticException extends RuntimeException {
+    public ArithmeticException(int code) {
+        super(code);
+    }
+}
+
+void main() {
+    try {
+        throw new ArithmeticException(99);
+    } catch (RuntimeException e) {
+        Console.printInt(e.getCode());
+    }
+    Console.printInt(7);
+}

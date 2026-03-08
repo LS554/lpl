@@ -1,0 +1,28 @@
+// LPL Example Program — hello.lpl
+// Demonstrates: classes, constructors, ownership, RAII, Console I/O
+
+include <console.lph>;
+
+class Person {
+    string name;
+    int age;
+
+    public Person(string name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+
+    public void greet() {
+        Console.println("Hello, " + this.name);
+    }
+}
+
+void main() {
+    // Stack-allocated object (RAII: destroyed at end of scope)
+    Person p = Person("Alex", 32);
+    p.greet();
+
+    // Heap-allocated owning pointer (RAII: destroyed + freed at end of scope)
+    owner Person* h = new Person("Jordan", 40);
+    h.greet();
+}

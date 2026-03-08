@@ -1,0 +1,31 @@
+// LPL Defer Example
+// Demonstrates: defer statement for guaranteed cleanup at scope exit
+
+include <console.lph>;
+
+void greet(bool early) {
+    Console.println("enter greet");
+    defer Console.println("leaving greet");
+
+    if (early) {
+        Console.println("early return");
+        return;
+    }
+
+    Console.println("normal path");
+}
+
+void main() {
+    // Basic defer — executes when scope ends (LIFO)
+    Console.println("start");
+    defer Console.println("deferred 1");
+    defer Console.println("deferred 2");
+    Console.println("end");
+
+    // Defers execute in reverse order after "end":
+    //   start → end → deferred 2 → deferred 1
+
+    // Defer with early return
+    greet(true);
+    greet(false);
+}

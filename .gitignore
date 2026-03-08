@@ -1,0 +1,46 @@
+# Build
+/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*~
+*#
+.vscode/
+.idea/
+
+# C/C++ build artifacts
+*.o
+*.obj
+*.d
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.lo
+*.slo
+*.lai
+*.la
+*.gch
+*.pch
+*.ilk
+*.pdb
+*.dwo
+
+# Executables
+*.exe
+*.out
+*.app
+
+# LLVM artifacts
+*.ll
+*.bc
+*.s

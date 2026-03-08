@@ -1,0 +1,48 @@
+include <console.lph>;
+
+int apply(func(int) -> int f, int val) {
+    return f(val);
+}
+
+void main() {
+    // Test 1: auto with int literal
+    auto x = 42;
+    Console.printInt(x);  // 42
+
+    // Test 2: auto with arithmetic
+    auto y = x + 8;
+    Console.printInt(y);  // 50
+
+    // Test 3: auto with lambda (key use case)
+    auto add = [](int a, int b) -> int {
+        return a + b;
+    };
+    Console.printInt(add(3, 4));  // 7
+
+    // Test 4: auto with lambda, return type deduction
+    auto mul = [](int a, int b) {
+        return a * b;
+    };
+    Console.printInt(mul(6, 9));  // 54
+
+    // Test 5: auto with capture lambda
+    auto factor = 10;
+    auto scaler = [factor](int x) -> int {
+        return x * factor;
+    };
+    Console.printInt(apply(scaler, 7));  // 70
+
+    // Test 6: auto with bool
+    auto flag = true;
+    if (flag) {
+        Console.printInt(1);  // 1
+    }
+
+    // Test 7: auto with string
+    auto msg = "hello";
+    Console.print(msg);  // hello
+
+    // Test 8: const auto
+    const auto pi = 3;
+    Console.printInt(pi);  // 3
+}
