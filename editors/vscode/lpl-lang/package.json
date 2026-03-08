@@ -41,7 +41,10 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "build:lsp": "cd ../../lpl-lsp && npm install && npm run build && cp -r out ../vscode/lpl-lang/lsp/out && cd ../vscode/lpl-lang/lsp && npm install --omit=dev",
+    "build": "npm run build:lsp && npm run compile",
+    "prepackage": "npm run build",
+    "package": "npx @vscode/vsce package"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
