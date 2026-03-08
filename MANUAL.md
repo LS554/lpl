@@ -2336,119 +2336,21 @@ This produces the server entry point at `editors/lpl-lsp/out/server.js`.
 | **Completion** | Keywords, stdlib methods (triggered by `.`), include headers (triggered by `<`), snippets, and symbols from the current file. |
 | **Signature Help** | Parameter hints for stdlib method calls (triggered by `(` and `,`). |
 
-#### Compiler Discovery
+### vscode extension
 
-The server locates the `lplc` compiler automatically using the following search order:
+The vscode extension provides autocompletion and syntax highlighting via the LSP.
 
-1. The `LPL_COMPILER` environment variable (absolute path to the binary).
-2. A `build/src/lplc` path relative to the server's location (works in the source tree).
-3. `lplc` on the system `PATH`.
+To compile the vscode extension run:
 
-If the compiler cannot be found, diagnostics are disabled but all other features still work. To set the compiler path explicitly:
-
-```sh
-export LPL_COMPILER=/path/to/lplc
 ```
-
-#### Running Standalone
-
-The server communicates over **stdio** by default, so any editor can launch it:
-
-```sh
-node editors/lpl-lsp/out/server.js --stdio
-```
-
-### VS Code
-
-The VS Code extension is at `editors/vscode/lpl-lang/`. It provides syntax highlighting via a TextMate grammar and connects to the bundled LSP server for all smart features.
-
-#### Installing
-
-```sh
-# Build the extension
 cd editors/vscode/lpl-lang
 npm install
-npm run compile
-
-# Package into a .vsix
-npx @vscode/vsce package --allow-missing-repository
-
-# Install the .vsix in VS Code
-code --install-extension lpl-syntax-0.1.0.vsix
+npm run build
+npx @vscode/vsce package --allow-missing-repository --no-dependencies
 ```
 
-Once installed, open any `.lpl` or `.lph` file to activate the extension. The language server starts automatically.
+NOTE: this will compile both the LSP server and the vscode extension, so it is not required that you compile the LSP beforehand for this to work.
 
-#### What You Get
-
-- **Syntax highlighting** for all LPL keywords, types, strings, comments, and operators.
-- **Real-time error underlining** as you type (powered by `lplc --check`).
-- **Hover docs** — hover over `Console.println` to see its signature and description.
-- **Autocomplete** — type `Console.` and see all available methods with documentation.
-- **Signature help** — inside `Strings.substring(`, see parameter names and types.
-- **Snippets** — type `for`, `class`, `trycatch`, `owner`, etc. and expand with Tab.
-
-### Zed
-
-Zed support is configured via the Zed settings file. The LPL language server runs as an external binary.
-
-#### Setup
-
-1. Build the LSP server (see above).
-
-2. Add the following to your Zed settings (`~/.config/zed/settings.json`):
-
-```json
-{
-  "languages": {
-    "LPL": {
-      "tab_size": 4
-    }
-  },
-  "lsp": {
-    "lpl-lsp": {
-      "binary": {
-        "path": "node",
-        "arguments": ["/absolute/path/to/editors/lpl-lsp/out/server.js", "--stdio"]
-      }
-    }
-  },
-  "language_overrides": {
-    "LPL": {
-      "language_servers": ["lpl-lsp"]
-    }
-  },
-  "file_types": {
-    "LPL": ["lpl", "lph"]
-  }
-}
-```
-
-Replace `/absolute/path/to/` with the actual path to your LPL project.
-
-3. Restart Zed. Open a `.lpl` file to see diagnostics, hover, and completion.
-
-### Other Editors
-
-Any editor with LSP support (Neovim, Helix, Sublime Text, Emacs, etc.) can use the LPL language server. The general pattern is:
-
-1. Build the server: `cd editors/lpl-lsp && npm install && npm run build`
-2. Configure your editor to launch: `node /path/to/editors/lpl-lsp/out/server.js --stdio`
-3. Associate it with `.lpl` and `.lph` file types.
-
-For example, in **Neovim** with `nvim-lspconfig`:
-
-```lua
-vim.api.nvim_create_autocmd('FileType', {
-  pattern = 'lpl',
-  callback = function()
-    vim.lsp.start({
-      name = 'lpl-lsp',
-      cmd = { 'node', '/path/to/editors/lpl-lsp/out/server.js', '--stdio' },
-    })
-  end,
-})
-```
 
 ---
 
