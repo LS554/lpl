@@ -19,8 +19,14 @@
     "languages": [
       {
         "id": "lpl",
-        "aliases": ["LPL", "lpl"],
-        "extensions": [".lpl", ".lph"],
+        "aliases": [
+          "LPL",
+          "lpl"
+        ],
+        "extensions": [
+          ".lpl",
+          ".lph"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -39,9 +45,9 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "build:lsp": "cd ../../lpl-lsp && npm install && npm run build && cp -r out ../vscode/lpl-lang/lsp/out && cd ../vscode/lpl-lang/lsp && npm install --omit=dev",
+    "compile": "esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=out/extension.js",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=out/extension.js --watch",
+    "build:lsp": "cd ../../lpl-lsp && npm install && npm run build && mkdir -p ../vscode/lpl-lang/lsp/out && cp out/server.js ../vscode/lpl-lang/lsp/out/server.js",
     "build": "npm run build:lsp && npm run compile",
     "prepackage": "npm run build",
     "package": "npx @vscode/vsce package"
@@ -52,6 +58,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.75.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.0.0"
   }
 }

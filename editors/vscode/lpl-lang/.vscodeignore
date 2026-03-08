@@ -5,3 +5,5 @@ tsconfig.json
 **/*.map
 node_modules/@types/**
 node_modules/typescript/**
+!lsp/out/**
+!lsp/node_modules/**
