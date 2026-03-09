@@ -85,7 +85,7 @@ static void printUsage(const char* prog) {
               << "\nOptions:\n"
               << "  -o <name>           Output file name\n"
               << "  -target <triple>    LLVM target triple\n"
-              << "  -O0,-O1,-O2,-O3    Optimization level\n"
+              << "  -O0,-O1,-O2,-O3     Optimization level\n"
               << "  -Os                 Optimize for size\n"
               << "  -Oz                 Optimize aggressively for size\n"
               << "  -g                  Emit debug information\n"

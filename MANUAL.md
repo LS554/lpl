@@ -65,7 +65,7 @@ lplc hello.lpl -o hello
 ### A More Complete Example
 
 ```
-include <console.lph>;
+include <console>
 
 class Person {
     string name;
@@ -112,6 +112,14 @@ Building the LPL compiler (`lplc`) and its runtime requires **CMake 3.16+**, a *
 | CMake | `sudo apt install cmake` | `brew install cmake` |
 | C/C++ compiler | `sudo apt install build-essential` | Xcode Command Line Tools (`xcode-select --install`) |
 | LLVM | `sudo apt install llvm-dev` | `brew install llvm` |
+
+### Build using script
+
+If you are on macOS or linux, you can build by running the 'build.bash' script provided in the project root.
+
+```sh
+bash build.bash
+```
 
 ### Linux
 
