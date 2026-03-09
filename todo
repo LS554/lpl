@@ -1,0 +1,6 @@
+# TODO: Implement autocomplete for function parameters
+# Issue: Autocomplete doesn't recognize variables in function parameters
+#
+# Current behavior:
+# - Variables work fine in function body
+# - No suggestions appear for params in function signatures
