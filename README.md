@@ -1,6 +1,6 @@
 # LPL
 
-A modern, compiled, statically-typed language that combines C++ performance and memory control with Java's clean syntax. Compiles to native code via LLVM — no garbage collector, no VM.
+A modern, compiled, statically-typed language that combines C++ performance and memory control with Java's clean class syntax. Compiles to native code via LLVM — no garbage collector, no VM.
 
 ## Features
 
