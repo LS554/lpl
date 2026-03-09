@@ -19,7 +19,7 @@ add_library(lplrt STATIC
     lplrt.c
     modules/lpl_console.c
     modules/lpl_math.c
-    modules/lpl_string.c
+    modules/lpl_strings.c
     modules/lpl_files.c
     modules/lpl_system.c
     modules/lpl_sync.c
@@ -38,7 +38,7 @@ target_compile_options(lpl_collections PRIVATE -Os -ffunction-sections -fdata-se
 set(STDLIB_DIR ${CMAKE_SOURCE_DIR}/stdlib)
 set(STDLIB_OUT ${CMAKE_CURRENT_BINARY_DIR})
 
-set(STDLIB_MODULES console math string files system sync)
+set(STDLIB_MODULES console math strings files system sync)
 set(STDLIB_LIBS)
 
 foreach(mod ${STDLIB_MODULES})

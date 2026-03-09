@@ -2173,12 +2173,12 @@ Console.printInt(42);
 Console.printFloat(3.14);
 ```
 
-### Strings (`<string.lph>`)
+### Strings (`<strings.lph>`)
 
 String utility functions:
 
 ```
-include <string.lph>;
+include <strings.lph>;
 
 int len = Strings.length("hello");              // 5
 string upper = Strings.toUpper("hello");        // "HELLO"
@@ -2420,7 +2420,7 @@ The vscode extension provides autocompletion and syntax highlighting via the LSP
 
 To compile the vscode extension run:
 
-```
+```sh
 cd editors/vscode/lpl-lang
 npm install
 npm run build
