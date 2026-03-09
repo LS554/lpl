@@ -49,13 +49,21 @@ lplc hello.lpl -o hello
 
 Requires LLVM and CMake.
 
+Using script:
+
+```sh
+bash build.bash
+```
+
+Or manually:
+
 ```sh
 mkdir build && cd build
 cmake ..
 cmake --build .
 ```
 
-This produces the `lplc` compiler and pre-compiled standard library archives.
+This produces the `lplc` compiler and pre-compiled standard library.
 
 ## Documentation
 
