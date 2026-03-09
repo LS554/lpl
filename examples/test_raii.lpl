@@ -1,0 +1,204 @@
+include <console>
+
+// ================================================================
+// Classes with observable constructor/destructor side-effects.
+// Every ctor/dtor prints a message so we can track exact firing order.
+// ================================================================
+
+class Widget {
+    int id;
+
+    public Widget(int id) {
+        this.id = id;
+        Console.print("Widget.ctor(");
+        Console.printInt(id);
+        Console.println(")");
+    }
+
+    ~Widget() {
+        Console.print("Widget.dtor(");
+        Console.printInt(this.id);
+        Console.println(")");
+    }
+
+    public int getId() { return this.id; }
+
+    public void work() {
+        Console.print("Widget.work(");
+        Console.printInt(this.id);
+        Console.println(")");
+    }
+}
+
+class Animal {
+    int legs;
+
+    public Animal(int legs) {
+        this.legs = legs;
+        Console.println("Animal.ctor");
+    }
+
+    ~Animal() {
+        Console.println("Animal.dtor");
+    }
+
+    public int getLegs() { return this.legs; }
+}
+
+class Dog extends Animal {
+    public Dog() {
+        super(4);
+        Console.println("Dog.ctor");
+    }
+
+    ~Dog() {
+        Console.println("Dog.dtor");
+    }
+
+    public void bark() {
+        Console.print("Dog.bark(");
+        Console.printInt(this.getLegs());
+        Console.println(" legs)");
+    }
+}
+
+// Class with an owner pointer field — nested RAII
+class Container {
+    owner Widget* item;
+
+    public Container(int id) {
+        this.item = new Widget(id);
+        Console.println("Container.ctor");
+    }
+
+    ~Container() {
+        Console.println("Container.dtor");
+    }
+
+    public void work() {
+        this.item.work();
+    }
+}
+
+// ================================================================
+// Helper
+// ================================================================
+void sep(string label) {
+    Console.print("-- ");
+    Console.print(label);
+    Console.println(" --");
+}
+
+// ================================================================
+// 1. owner class — destructor fires on normal scope exit
+//    Expected: ctor, work, [dtor fires], "after scope"
+// ================================================================
+void testOwnerNormalExit() {
+    sep("owner class normal scope exit");
+    {
+        owner Widget* w = new Widget(1);
+        w.work();
+    }   // Widget.dtor(1) fires here
+    Console.println("after scope");
+}
+
+// ================================================================
+// 2. owner class — destructor fires on early return
+//    Both paths must trigger cleanup exactly once.
+//    Expected on early path: ctor, work, [dtor], "after call"
+// ================================================================
+void useOwnerEarlyReturn(bool doEarly) {
+    owner Widget* w = new Widget(2);
+    w.work();
+    if (doEarly) {
+        return;  // dtor fires here
+    }
+    // dtor fires here on normal path
+}
+
+void testOwnerEarlyReturn() {
+    sep("owner class early return");
+    useOwnerEarlyReturn(true);
+    Console.println("after early call");
+    useOwnerEarlyReturn(false);
+    Console.println("after normal call");
+}
+
+// ================================================================
+// 3. explicit delete — destructor fires, no double-free
+//    Expected: ctor, work, [dtor], "after delete"
+// ================================================================
+void testExplicitDelete() {
+    sep("explicit delete");
+    Widget* w = new Widget(3);   // non-owning — manual management
+    w.work();
+    delete w;
+    Console.println("after delete");
+}
+
+// ================================================================
+// 4. inherited destructors
+//    Order: Dog.dtor (user body) → Dog fields → Animal.dtor
+//    Expected: Animal.ctor, Dog.ctor, bark, [Dog.dtor, Animal.dtor], "after scope"
+// ================================================================
+void testInheritedDestructors() {
+    sep("inherited destructors");
+    {
+        owner Dog* d = new Dog();
+        d.bark();
+    }   // Dog.dtor fires, then Animal.dtor
+    Console.println("after scope");
+}
+
+// ================================================================
+// 5. move semantics — ownership transfer across function boundary
+//    createWidget returns ownership; caller's scope cleans up.
+//    Expected: ctor once inside createWidget, work, dtor once at caller end.
+//    The original p inside createWidget must NOT trigger a dtor.
+// ================================================================
+owner Widget* createWidget(int id) {
+    owner Widget* p = new Widget(id);
+    Console.println("createWidget: returning ownership");
+    return move p;   // isMoved → no cleanup for p in this scope
+}
+
+void testMoveSemantics() {
+    sep("move semantics");
+    {
+        owner Widget* w = createWidget(5);
+        w.work();
+    }   // Widget.dtor(5) fires exactly once here
+    Console.println("after move scope");
+}
+
+// ================================================================
+// 6. owner pointer field — nested RAII
+//    When Container is destroyed, its owner Widget* field is also freed.
+//    Expected: Widget.ctor, Container.ctor, work, Container.dtor, Widget.dtor, "after"
+// ================================================================
+void testOwnerField() {
+    sep("owner field nested RAII");
+    {
+        owner Container* c = new Container(6);
+        c.work();
+    }   // Container.dtor then Widget.dtor(6)
+    Console.println("after scope");
+}
+
+// ================================================================
+// Entry point
+// ================================================================
+int main(int argc, string[] args) {
+    testOwnerNormalExit();
+    Console.println("");
+    testOwnerEarlyReturn();
+    Console.println("");
+    testExplicitDelete();
+    Console.println("");
+    testInheritedDestructors();
+    Console.println("");
+    testMoveSemantics();
+    Console.println("");
+    testOwnerField();
+    return 0;
+}

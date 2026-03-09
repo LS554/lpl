@@ -313,6 +313,9 @@ void CodeGen::popCleanupScope() {
 
 void CodeGen::emitCleanupsForScope() {
     if (cleanupStack.empty()) return;
+    // If the current block already has a terminator, cleanup was already
+    // emitted by emitCleanups() before the ret/br — don't double-emit.
+    if (builder.GetInsertBlock() && builder.GetInsertBlock()->getTerminator()) return;
     auto& scope = cleanupStack.back();
     // Destroy in reverse order
     for (int i = (int)scope.size() - 1; i >= 0; i--) {
@@ -715,13 +718,27 @@ void CodeGen::generateDestructor(const std::string& className, ClassDecl& cls) {
                 auto destroyFn = functionMap["__lpl_string_destroy"];
                 if (destroyFn) builder.CreateCall(destroyFn, {fieldPtr});
             } else if (field.type.kind == TypeSpec::ClassName && !field.type.pointerDepth) {
-                // Nested class object: call its destructor
+                // Nested class object (stack-embedded): call its destructor
                 auto dtorName = mangleDestructor(field.type.className);
                 auto it = functionMap.find(dtorName);
                 if (it != functionMap.end()) {
                     auto fieldPtr = builder.CreateStructGEP(classType, selfPtr, fieldIdx);
                     builder.CreateCall(it->second, {fieldPtr});
                 }
+            } else if (field.type.isOwner && field.type.pointerDepth > 0) {
+                // owner pointer field: call destructor (if class) then free
+                auto fieldPtr = builder.CreateStructGEP(classType, selfPtr, fieldIdx);
+                auto ptrVal = builder.CreateLoad(
+                    llvm::PointerType::get(context, 0), fieldPtr, "owner.field");
+                if (field.type.kind == TypeSpec::ClassName && !field.type.className.empty()) {
+                    auto dtorName = mangleDestructor(field.type.className);
+                    auto it = functionMap.find(dtorName);
+                    if (it != functionMap.end()) {
+                        builder.CreateCall(it->second, {ptrVal});
+                    }
+                }
+                auto freeFn = functionMap["free"];
+                if (freeFn) builder.CreateCall(freeFn, {ptrVal});
             }
         }
 
@@ -1155,12 +1172,13 @@ void CodeGen::generateVarDecl(VarDeclStmt& stmt) {
             }
         }
 
-        // Special case: owner pointer from new
-        if (stmt.type.isOwner && stmt.init->kind == Expr::New) {
+        // Special case: owner pointer (from new, function call, or any other expr)
+        // Covers: owner Widget* w = new Widget(); owner Widget* w = createWidget();
+        if (stmt.type.isOwner && stmt.type.pointerDepth > 0 && !stmt.type.isArray) {
             auto val = generateExpr(*stmt.init);
-            builder.CreateStore(val, alloca);
+            if (val) builder.CreateStore(val, alloca);
 
-            // Register for RAII cleanup (owner: destroy + free)
+            // Register for RAII cleanup (owner: call destructor if class, then free)
             if (!cleanupStack.empty()) {
                 cleanupStack.back().push_back({alloca, stmt.type.className, true});
             }
@@ -1318,6 +1336,22 @@ void CodeGen::generateFor(ForStmt& stmt) {
 void CodeGen::generateReturn(ReturnStmt& stmt) {
     if (stmt.value) {
         auto val = generateExpr(*stmt.value);
+
+        // 'return move x' — mark x's cleanup entry as moved so emitCleanups()
+        // skips freeing it.  The parser stores isMove on the ReturnStmt; the value
+        // expression is an ordinary Ident (not a MoveExpr node).
+        if (stmt.isMove && stmt.value->kind == Expr::Ident) {
+            auto& ident = static_cast<IdentExpr&>(*stmt.value);
+            for (auto& scope : cleanupStack) {
+                for (auto& entry : scope) {
+                    if (namedValues.count(ident.name) &&
+                        namedValues.at(ident.name) == entry.alloca_) {
+                        entry.isMoved = true;
+                    }
+                }
+            }
+        }
+
         emitCleanups();
         if (sretPtr_ && val) {
             builder.CreateStore(val, sretPtr_);
@@ -1745,6 +1779,14 @@ llvm::Value* CodeGen::generateExpr(Expr& expr) {
                     builder.CreateStore(val, addr);
                     return val;
                 }
+            } else if (e.target->kind == Expr::Deref) {
+                // *ptr = value — store into the address the pointer holds
+                auto& deref = static_cast<DerefExpr&>(*e.target);
+                auto ptr = generateExpr(*deref.operand);
+                if (ptr) {
+                    builder.CreateStore(val, ptr);
+                    return val;
+                }
             }
             return val;
         }
@@ -1796,13 +1838,14 @@ llvm::Value* CodeGen::generateExpr(Expr& expr) {
             auto& e = static_cast<DerefExpr&>(expr);
             auto val = generateExpr(*e.operand);
             if (!val) return nullptr;
-            // Load through pointer - need to know pointee type
-            auto& rt = e.operand->resolvedType;
-            if (rt.kind == TypeSpec::ClassName) {
-                auto ct = getOrCreateClassType(rt.className);
-                return builder.CreateLoad(ct, val, "deref");
-            }
-            return val;
+            // Compute pointee type by stripping one level of indirection
+            TypeSpec pointeeTs = e.operand->resolvedType;
+            if (pointeeTs.pointerDepth > 0)
+                pointeeTs.pointerDepth--;
+            else if (pointeeTs.isReference)
+                pointeeTs.isReference = false;
+            auto pointeeTy = getLLVMType(pointeeTs);
+            return builder.CreateLoad(pointeeTy, val, "deref");
         }
 
         case Expr::Index:
@@ -2457,11 +2500,23 @@ llvm::Value* CodeGen::generateMethodCall(MethodCallExpr& expr) {
             isStaticClassRef = true;
         }
     } else if (expr.object->kind == Expr::MemberAccess) {
-        // Sema may have resolved a dotted chain to a class name
-        // Check if the resolvedType.className matches a known class
-        if (!className.empty() && sema.lookupClass(className)) {
-            isStaticClassRef = true;
+        // Sema may have resolved a namespace-dotted chain (e.g. Std.IO.Console.println)
+        // to a static class reference.  Walk to the base of the chain: it is only static
+        // when the chain starts from an Ident that is NOT a local variable (i.e. it is a
+        // namespace prefix or class name, not `this`, `super`, or a declared local).
+        const Expr* base = expr.object.get();
+        while (base->kind == Expr::MemberAccess) {
+            base = static_cast<const MemberAccessExpr*>(base)->object.get();
         }
+        if (base->kind == Expr::Ident) {
+            auto& id = static_cast<const IdentExpr&>(*base);
+            bool isLocalVar = namedValues.count(id.name) > 0;
+            if (!isLocalVar && !className.empty() && sema.lookupClass(className)) {
+                isStaticClassRef = true;
+            }
+        }
+        // If base is This, Super, or any non-Ident expr it is an instance access —
+        // isStaticClassRef stays false.
     }
 
     if (isStaticClassRef) {
@@ -2662,11 +2717,27 @@ llvm::Value* CodeGen::generateMemberAccess(MemberAccessExpr& expr, bool wantAddr
 }
 
 llvm::Value* CodeGen::generateNew(NewExpr& expr) {
+    auto dataLayout = module->getDataLayout();
+
+    // Handle primitive types: new int(), new float(), etc.
+    if (expr.type.kind != TypeSpec::ClassName) {
+        auto primTy = getLLVMType(expr.type);
+        if (!primTy || !primTy->isSized()) {
+            std::cerr << "error: 'new' requires a sized type\n";
+            return nullptr;
+        }
+        auto size = dataLayout.getTypeAllocSize(primTy);
+        auto mallocFn = functionMap["malloc"];
+        auto sizeVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), size);
+        auto raw = builder.CreateCall(mallocFn, {sizeVal}, "new.prim");
+        builder.CreateMemSet(raw, builder.getInt8(0), sizeVal, llvm::MaybeAlign(8));
+        return raw;
+    }
+
     auto className = expr.type.className;
     auto classType = getOrCreateClassType(className);
 
     // Calculate size
-    auto dataLayout = module->getDataLayout();
     auto size = dataLayout.getTypeAllocSize(classType);
 
     // Call malloc

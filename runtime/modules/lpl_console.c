@@ -43,3 +43,7 @@ void __lpl_console_print_int(int32_t value) {
 void __lpl_console_print_float(double value) {
     printf("%g", value);
 }
+
+void __lpl_console_print_hex(int value) {
+    printf("%#x", value);
+}

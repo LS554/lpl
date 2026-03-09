@@ -271,13 +271,19 @@ Person p = Person("Alex", 32);
 
 ### Pointer Types
 
+Pointer types work for both class types and primitive types:
+
 ```
-Person* ptr;            // non-owning pointer
+Person* ptr;            // non-owning pointer to class
 owner Person* optr;     // owning pointer (responsible for destruction)
 char** argv;            // pointer to pointer (multi-level)
+
+int*    pi;             // pointer to int
+double* pd;             // pointer to double
+float*  pf;             // pointer to float (any primitive)
 ```
 
-Multi-level pointers (`**`, `***`, etc.) are supported for C interop. Indexing a pointer dereferences one level: `argv[i]` on `char**` yields `char*`.
+Multi-level pointers (`**`, `***`, etc.) are supported for C interop and general use. Indexing a pointer dereferences one level: `argv[i]` on `char**` yields `char*`.
 
 Use `string(expr)` to explicitly convert a `char*` to `string`:
 
@@ -375,6 +381,26 @@ Attempting to reassign a `const` variable produces a compile error.
 ```
 Person* ptr = &localPerson;         // non-owning pointer to stack object
 owner Person* op = new Person();    // owning pointer to heap object
+
+int*    pi  = new int();            // heap-allocated int
+double* pd  = &someDouble;          // borrow a stack double
+int**   pp  = &pi;                  // pointer to pointer
+```
+
+Deref with `*` for both reading and writing:
+
+```
+*pi = 42;                           // write through pointer
+int val = *pi;                      // read through pointer
+Console.printInt(*pi);              // inline deref in function argument
+```
+
+When assigning a floating-point literal to a `float*`, narrow it explicitly:
+
+```
+float* pf = new float();
+*pf = 2.5 as float;    // correct — narrows double literal to float before storing
+*pf = 2.5;             // wrong  — stores 8-byte double into 4-byte allocation
 ```
 
 ---
@@ -437,8 +463,8 @@ owner Person* op = new Person();    // owning pointer to heap object
 
 | Operator | Meaning |
 |----------|---------|
-| `&` | Address-of |
-| `*` | Dereference |
+| `&` | Address-of (take pointer to variable) |
+| `*` | Dereference — read (`val = *ptr`) or write (`*ptr = val`) |
 | `.` | Member access (auto-derefs pointers) |
 | `..` | Half-open range (start inclusive, end exclusive) |
 | `..=` | Closed range (start inclusive, end inclusive) |
@@ -1230,13 +1256,18 @@ long big = x as long;          // widening
 byte small = x as byte;        // narrowing
 ```
 
-`as` is a postfix operator, so it works naturally in expressions:
+`as` is a postfix operator with high precedence — it binds tighter than the unary dereference `*`. When casting a dereferenced pointer, wrap the dereference in parentheses:
 
 ```
 int a = 10;
 int b = 3;
 double ratio = (a as double) / (b as double);  // 3.333...
 int result = ratio as int;                      // 3
+
+// With pointers — parentheses required around *ptr
+long*  pl = new long();    *pl = 99;
+int    v  = (*pl) as int;  // correct: deref, then cast
+// int bad = *pl as int;   // error: tries to dereference (pl as int), which is not a pointer
 ```
 
 ### Boundary Conversions: `Type(x)`
@@ -1274,6 +1305,9 @@ The distinction: `as` says "treat this value as another type", while `Type(x)` s
 | `int` | `byte` | Narrowing |
 | `float` | `double` | Widening |
 | `double` | `float` | Narrowing |
+| `bool` | `int` | Sign-extends: `true as int` → `-1`, use `b ? 1 : 0` for `0`/`1` |
+| `byte` | `int` | Sign-extends: values ≥ 128 produce negative results |
+| pointer | pointer | Identity — all pointer types are interchangeable at the IR level |
 
 **Boundary conversions (`Type(x)`):**
 
@@ -1301,32 +1335,64 @@ void example() {
 
 ### Heap Allocation
 
-Use `new` to allocate objects on the heap:
+Use `new` to allocate objects on the heap. `new` works for both class types and primitive types:
 
 ```
+// Class types
 owner Person* p = new Person("Alex", 32);
 p.greet();
 delete p;   // explicit destruction
+
+// Primitive types — allocates sizeof(T) bytes
+owner int*    pi = new int();
+owner double* pd = new double();
+owner bool*   pb = new bool();
 ```
 
-Or let RAII handle it — see [Ownership and RAII](#ownership-and-raii).
+Read and write through primitive pointers with `*`:
+
+```
+*pi = 42;
+int v = *pi;
+Console.printInt(*pi);   // inline deref in argument position works
+```
+
+Or let RAII handle cleanup automatically — see [Ownership and RAII](#ownership-and-raii).
 
 ### Pointers
 
+Non-owning pointers borrow a variable's address without taking ownership:
+
 ```
 Person local = Person("Alex", 32);
-Person* ptr = &local;       // non-owning pointer (borrowing)
-ptr.greet();                // access through pointer
+Person* ptr = &local;       // borrow — does not manage lifetime
+ptr.greet();                // member access auto-derefs
+
+int x = 10;
+int* p = &x;               // borrow a primitive
+*p = 20;                   // write through pointer — x is now 20
+Console.printInt(*p);      // inline deref as function argument
 ```
 
-Non-owning pointers (`Person*`) do not manage lifetime. The pointed-to object must outlive the pointer.
+Multi-level pointers work the same way:
+
+```
+int*  p1 = &x;
+int** p2 = &p1;
+Console.printInt(**p2);    // double-dereference read
+**p2 = 99;                 // double-dereference write
+```
+
+Non-owning pointers do not manage lifetime. The pointed-to object must outlive the pointer.
 
 ### Summary
 
 | Allocation | Syntax | Lifetime |
 |------------|--------|----------|
-| Stack | `Type x = Type(...)` | End of enclosing scope |
-| Heap (owned) | `owner Type* x = new Type(...)` | End of enclosing scope (auto) or `delete` |
+| Stack (class) | `Type x = Type(...)` | End of enclosing scope |
+| Stack (primitive) | `int x = 42;` | End of enclosing scope |
+| Heap (owned class) | `owner Type* x = new Type(...)` | End of enclosing scope (auto) or `delete` |
+| Heap (owned primitive) | `owner int* x = new int()` | End of enclosing scope (auto) or `delete` |
 | Heap (borrowed) | `Type* x = &something` | Programmer responsibility |
 
 ---
@@ -1337,14 +1403,26 @@ Ownership is LPL's core memory safety mechanism. It is enforced at compile time 
 
 ### The `owner` Keyword
 
-`owner` marks a pointer as the sole owner of a heap-allocated object. When the owner goes out of scope, the object is automatically destroyed and freed:
+`owner` marks a pointer as the sole owner of a heap-allocated object. When the owner goes out of scope, the object is automatically destroyed and freed. `owner` works for both class types and primitive types:
 
 ```
 void example() {
+    // Class type — destructor is called, then free()
     owner Person* p = new Person("Alex", 32);
     p.greet();
 }   // compiler inserts: Person.destroy(p) + free(p)
+
+void examplePrimitive() {
+    // Primitive type — no destructor, just free()
+    owner int*    pi = new int();
+    owner double* pd = new double();
+    *pi = 42;
+    *pd = 3.14;
+    Console.printInt(*pi);
+}   // compiler inserts: free(pi), free(pd)
 ```
+
+RAII cleanup fires on **every** exit path — `return`, `break`, and end of block — regardless of whether the pointed-to type has a destructor.
 
 This is conceptually similar to C++'s `std::unique_ptr<T>`, but built into the language rather than a library template.
 
@@ -1353,7 +1431,7 @@ This is conceptually similar to C++'s `std::unique_ptr<T>`, but built into the l
 - Only one `owner` pointer may own a given object at a time
 - Copying an `owner` pointer is a compile error
 - Transferring ownership requires `move`
-- If an `owner` pointer leaves scope, the compiler inserts destructor + free calls
+- If an `owner` pointer leaves scope, the compiler inserts destructor (if any) + `free`
 
 ### Ownership Transfer with `move`
 
@@ -2370,15 +2448,18 @@ owner Person* h = new Person("Jordan", 40);
 
 ### Always Use `owner` for Heap Pointers
 
-If you allocate with `new`, the result should almost always be stored in an `owner` pointer. This ensures automatic cleanup:
+If you allocate with `new`, the result should almost always be stored in an `owner` pointer. This applies to both class and primitive types, and ensures automatic cleanup on every exit path:
 
 ```
 // Good — ownership is clear, cleanup is automatic
 owner Person* p = new Person("Alex", 32);
+owner int*    n = new int();
 
 // Dangerous — manual management, easy to leak
 Person* p = new Person("Alex", 32);
 delete p;   // easy to forget, especially with early returns
+int* n = new int();
+delete n;   // same problem
 ```
 
 ### Use `defer` for Non-RAII Cleanup

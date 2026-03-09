@@ -26,4 +26,5 @@ class Console {
     public static void println(string message) {}
     public static void printInt(int value) {}
     public static void printFloat(double value) {}
+    public static void printHex(int value) {}
 }

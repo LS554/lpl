@@ -1,0 +1,7 @@
+include <console>
+
+int main() {
+    int val = 55;
+    Console.printHex(val);
+    return 0;
+}

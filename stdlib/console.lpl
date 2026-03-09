@@ -24,6 +24,7 @@ extern "C" {
     void __lpl_console_println(string message);
     void __lpl_console_print_int(int value);
     void __lpl_console_print_float(double value);
+    void __lpl_console_print_hex(int value);
 }
 
 class Console {
@@ -41,5 +42,9 @@ class Console {
 
     public static void printFloat(double value) {
         __lpl_console_print_float(value);
+    }
+
+    public static void printHex(int value) {
+        __lpl_console_print_hex(value);
     }
 }

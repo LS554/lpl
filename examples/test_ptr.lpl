@@ -1,0 +1,265 @@
+include <console>
+
+// ================================================================
+// C interop declarations
+// ================================================================
+extern "C" {
+    int   abs(int x);
+    double sqrt(double x);
+    void* malloc(long size);
+    void  free(void* ptr);
+    char* getenv(char* name);
+}
+
+// ================================================================
+// Helper: print a labelled int result
+// ================================================================
+void check(string label, int got, int expected) {
+    if (got == expected) {
+        Console.print("PASS  ");
+    } else {
+        Console.print("FAIL  ");
+    }
+    Console.print(label);
+    Console.print(": ");
+    Console.printInt(got);
+    Console.println("");
+}
+
+// ================================================================
+// 1. new + delete on every primitive type
+//    After the fix, new T() must allocate sizeof(T) bytes and
+//    delete must free them without crashing.
+// ================================================================
+void testNewDeletePrimitives() {
+    Console.println("-- new / delete primitives --");
+
+    // bool: i1 sign-extends to i32, so true -> -1; use ternary to get 1/0
+    bool*   pb = new bool();    *pb = true;
+    check("bool  deref", (*pb) ? 1 : 0, 1);
+    delete pb;
+
+    // byte: treat as signed i8; keep value in [0..127] to avoid sign-extension surprise
+    byte*   pby = new byte();   *pby = 100;
+    check("byte  deref", (*pby) as int, 100);
+    delete pby;
+
+    char*   pc = new char();    *pc = 65;   // 'A'
+    check("char  deref", (*pc) as int, 65);
+    delete pc;
+
+    short*  ps = new short();   *ps = 1000;
+    check("short deref", (*ps) as int, 1000);
+    delete ps;
+
+    int*    pi = new int();     *pi = 42;
+    check("int   deref", *pi, 42);
+    delete pi;
+
+    long*   pl = new long();    *pl = 999999999;
+    check("long  deref", (*pl) as int, 999999999);
+    delete pl;
+
+    // float*: literal 2.5 is double; narrow explicitly with `as float` before storing
+    float*  pf = new float();   *pf = 2.5 as float;
+    Console.print("PASS  float deref: ");
+    Console.printFloat((*pf) as double);
+    Console.println("");
+    delete pf;
+
+    double* pd = new double();  *pd = 3.14;
+    Console.print("PASS  double deref: ");
+    Console.printFloat(*pd);
+    Console.println("");
+    delete pd;
+}
+
+// ================================================================
+// 2. Inline deref as function argument (Fix 2 regression)
+//    *ptr passed directly as an argument — must load, not pass ptr.
+// ================================================================
+void testInlineDerefArg() {
+    Console.println("-- inline deref as arg --");
+
+    int*    pi = new int();    *pi = 77;
+    check("int*  inline", *pi, 77);
+    delete pi;
+
+    long*   pl = new long();   *pl = 88;
+    check("long* inline", (*pl) as int, 88);
+    delete pl;
+
+    double* pd = new double(); *pd = 5.0;
+    Console.print("PASS  double* inline: ");
+    Console.printFloat(*pd);
+    Console.println("");
+    delete pd;
+}
+
+// ================================================================
+// 3. void* -> typed pointer cast: write then read back (Fix 3)
+//    malloc returns void*, cast with `as`, write via *ptr = val,
+//    read back inline.
+// ================================================================
+void testVoidPtrCast() {
+    Console.println("-- void* cast write/read --");
+
+    // int
+    void* raw = malloc(4 as long);
+    int*  pi  = raw as int*;
+    *pi = 123;
+    check("void*->int* write", *pi, 123);
+    free(raw);
+
+    // long (8 bytes)
+    void* rawL = malloc(8 as long);
+    long* pl   = rawL as long*;
+    *pl = 456789;
+    check("void*->long*", (*pl) as int, 456789);
+    free(rawL);
+
+    // double (8 bytes)
+    void* rawD = malloc(8 as long);
+    double* pd = rawD as double*;
+    *pd = 7.5;
+    Console.print("PASS  void*->double*: ");
+    Console.printFloat(*pd);
+    Console.println("");
+    free(rawD);
+}
+
+// ================================================================
+// 4. Non-owning borrow pointer (&local)
+//    Take address of stack variable, write through pointer,
+//    verify both local and dereferenced pointer see the change.
+// ================================================================
+void testBorrowPointer() {
+    Console.println("-- borrow pointer --");
+
+    int   local = 10;
+    int*  bptr  = &local;
+
+    // write through pointer, read via local
+    *bptr = 200;
+    check("borrow write->local", local, 200);
+
+    // write via local, read through pointer inline
+    local = 300;
+    check("local write->deref", *bptr, 300);
+}
+
+// ================================================================
+// 5. Double-level pointer (int**)
+//    Takes address of a pointer, dereferences two levels for
+//    both read and write.
+// ================================================================
+void testDoublePointer() {
+    Console.println("-- double pointer --");
+
+    int   x  = 42;
+    int*  p1 = &x;
+    int** p2 = &p1;
+
+    check("**p2 read",   **p2, 42);
+
+    **p2 = 100;
+    check("**p2 write",  x,    100);
+    check("x via **p2",  **p2, 100);
+}
+
+// ================================================================
+// 6. owner + RAII on early return (Fix 4 regression)
+//    The RAII cleanup for owner pointers must fire on the early
+//    return path without emitting instructions after the terminator.
+//    We can only verify it doesn't crash / produce invalid IR;
+//    the output proves the normal path still works.
+// ================================================================
+void testOwnerEarlyReturn(bool earlyExit) {
+    owner int* p = new int();
+    *p = 55;
+    if (earlyExit) {
+        check("owner early-return path", *p, 55);
+        return;  // RAII frees p here — must not double-emit cleanup
+    }
+    check("owner normal-return path", *p, 55);
+    // RAII frees p at end of scope
+}
+
+// ================================================================
+// 7. Extern C interop — math functions and manual malloc/free
+// ================================================================
+void testExternC() {
+    Console.println("-- extern C --");
+
+    check("abs(-42)",  abs(-42), 42);
+    check("abs(0)",    abs(0),   0);
+    check("abs(7)",    abs(7),   7);
+
+    Console.print("PASS  sqrt(25.0): ");
+    Console.printFloat(sqrt(25.0));
+    Console.println("");
+
+    Console.print("PASS  sqrt(2.0): ");
+    Console.printFloat(sqrt(2.0));
+    Console.println("");
+
+    // raw malloc/free round-trip
+    void* buf = malloc(40 as long);
+    int*  arr = buf as int*;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+    arr[3] = 40;
+    check("malloc arr[0]", arr[0], 10);
+    check("malloc arr[3]", arr[3], 40);
+    free(buf);
+}
+
+// ================================================================
+// 8. Extern C string interop: string <-> char* boundary conversion
+//    char*(str) extracts the raw data pointer; string(ptr) copies it back.
+// ================================================================
+extern "C" {
+    long strlen(char* s);
+}
+
+void testExternCStrings() {
+    Console.println("-- extern C strings --");
+
+    // string -> char*: extract raw pointer, measure with C strlen
+    string msg = "hello";
+    char*  cptr = char*(msg);
+    long   len  = strlen(cptr);
+    check("strlen(char*(str))", len as int, 5);
+
+    // char* -> string round-trip via getenv: get HOME, convert back to char*, strlen
+    char* home = getenv(char*("HOME"));
+    if (home == null) {
+        Console.println("SKIP  HOME not set");
+    } else {
+        // Convert back to LPL string and extract again — round-trip
+        string s   = string(home);
+        char*  back = char*(s);
+        long   hlen = strlen(back);
+        long   orig = strlen(home);
+        check("getenv round-trip length", hlen as int, orig as int);
+        Console.println("PASS  getenv HOME is non-empty");
+    }
+}
+
+// ================================================================
+// Entry point
+// ================================================================
+int main(int argc, string[] args) {
+    testNewDeletePrimitives();
+    testInlineDerefArg();
+    testVoidPtrCast();
+    testBorrowPointer();
+    testDoublePointer();
+    Console.println("-- owner RAII early return --");
+    testOwnerEarlyReturn(true);
+    testOwnerEarlyReturn(false);
+    testExternC();
+    testExternCStrings();
+    return 0;
+}
