@@ -15,7 +15,7 @@ A modern, compiled, statically-typed language that combines C++ performance and 
 ## Quick Start
 
 ```
-include <console.lph>;
+include <console>
 
 class Person {
     string name;
