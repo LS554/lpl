@@ -2731,6 +2731,11 @@ llvm::Value* CodeGen::generateNew(NewExpr& expr) {
         auto sizeVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), size);
         auto raw = builder.CreateCall(mallocFn, {sizeVal}, "new.prim");
         builder.CreateMemSet(raw, builder.getInt8(0), sizeVal, llvm::MaybeAlign(8));
+        if (!expr.args.empty()) {
+            auto val = generateExpr(*expr.args[0]);
+            auto ptr = builder.CreateBitCast(raw, llvm::PointerType::getUnqual(primTy), "new.prim.ptr");
+            builder.CreateStore(val, ptr);
+        }
         return raw;
     }
 

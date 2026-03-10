@@ -248,6 +248,45 @@ void testExternCStrings() {
 }
 
 // ================================================================
+// 9. new T(value) — primitive init with value
+// ================================================================
+void testNewWithInit() {
+    Console.println("-- new T(value) --");
+
+    bool*   pb = new bool(true);
+    check("new bool(true)",   (*pb) ? 1 : 0, 1);
+    delete pb;
+
+    int*    pi = new int(314);
+    check("new int(314)",      *pi, 314);
+    delete pi;
+
+    byte*   pby = new byte(127);
+    check("new byte(127)",    (*pby) as int, 127);
+    delete pby;
+
+    short*  ps = new short(1234);
+    check("new short(1234)",  (*ps) as int, 1234);
+    delete ps;
+
+    long*   pl = new long(999999);
+    check("new long(999999)", (*pl) as int, 999999);
+    delete pl;
+
+    float*  pf = new float(1.5 as float);
+    Console.print("PASS  new float(1.5): ");
+    Console.printFloat((*pf) as double);
+    Console.println("");
+    delete pf;
+
+    double* pd = new double(2.71828);
+    Console.print("PASS  new double(2.71828): ");
+    Console.printFloat(*pd);
+    Console.println("");
+    delete pd;
+}
+
+// ================================================================
 // Entry point
 // ================================================================
 int main(int argc, string[] args) {
@@ -261,5 +300,6 @@ int main(int argc, string[] args) {
     testOwnerEarlyReturn(false);
     testExternC();
     testExternCStrings();
+    testNewWithInit();
     return 0;
 }
