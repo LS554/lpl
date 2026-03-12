@@ -14,7 +14,7 @@ A modern, compiled, statically-typed language that combines C++ performance and 
 
 ## Quick Start
 
-```
+```d
 include <console>
 
 class Person {
