@@ -1715,6 +1715,7 @@ LPL ships the following standard library headers:
 | `<files.lph>` | File I/O (`read`, `write`, `exists`, `readAll`, ...) |
 | `<system.lph>` | OS operations (`exit`, `getenv`, `sleep`, `currentTimeMillis`, ...) |
 | `<collections.lph>` | Generic collections (`List<T>`, `Map<K, V>`) |
+| `<memory.lph>` | Raw memory (`alloc`, `realloc`, `copy`, `zero`, `set`, `compare`) |
 | `<sync.lph>` | Synchronization (`Mutex`) |
 
 ### Selective Linking
@@ -1854,21 +1855,107 @@ void main() {
 
 ### Linking with C Libraries
 
-The standard C library (`-lc`) is always linked automatically. For third-party C libraries, you have two options:
-
-**Option 1:** Let `lplc` handle linking and provide library paths:
+The standard C library (`-lc`) is always linked automatically. For third-party C libraries, `lplc` supports passing linker flags directly:
 
 ```sh
-# If the library is in a standard location
-lplc app.lpl -o app
+# Link against system libraries
+lplc app.lpl -o app -lsqlite3 -lcurl
+
+# Specify library search paths
+lplc app.lpl -o app -L/usr/local/lib -lmylib
+
+# Add header search paths (used by #include resolution)
+lplc app.lpl -o app -I/usr/local/include
+
+# Compile and link C source files alongside LPL code
+lplc app.lpl mylib.c -o app
+
+# Static linking
+lplc app.lpl -o app -static -lz
+
+# Produce a shared library
+lplc app.lpl -shared -o libapp.so
 ```
 
-**Option 2:** Compile to object file and link manually for full control:
+Alternatively, compile to an object file and link manually for full control:
 
 ```sh
 lplc app.lpl -c -o app.o
 cc app.o -o app -lsqlite3 -lcurl -llplrt -lc
 ```
+
+#### GPL Compliance
+
+When `-static` is used with a known GPL library, the compiler emits a warning:
+
+```
+warning: statically linking GPL library '-lreadline' — the resulting binary is a GPL derivative
+```
+
+Dynamic linking (the default) naturally avoids GPL implications for LGPL libraries. The compiler never forces static linking — it only happens when you explicitly request it with `-static`.
+
+### Including C Headers
+
+Instead of manually declaring every C function, you can use `#include` directives inside `extern "C"` blocks to automatically import function declarations from C headers:
+
+```
+extern "C" {
+    #include <stdio.h>
+    #include <stdlib.h>
+}
+
+void main() {
+    int x = abs(-42);
+    // x == 42
+}
+```
+
+The compiler parses the C header using `clang` and automatically generates LPL-compatible declarations for all exported functions. This works with both system headers (`<stdio.h>`) and local headers (`"mylib.h"`):
+
+```
+extern "C" {
+    // System header — resolved via standard include paths
+    #include <math.h>
+
+    // Local header — resolved relative to the source file
+    #include "mylib.h"
+
+    // Manual declarations can coexist with #include
+    int myOtherFunc(int x);
+}
+```
+
+#### How It Works
+
+1. The compiler creates a temporary C file that includes the specified header
+2. It runs `clang -Xclang -ast-dump=json` to extract function declarations from the header's AST
+3. C types are mapped to LPL types automatically:
+
+| C Type | LPL Type |
+|--------|----------|
+| `int` | `int` |
+| `long`, `long long`, `size_t` | `long` |
+| `float` | `float` |
+| `double`, `long double` | `double` |
+| `char` | `char` |
+| `short` | `short` |
+| `_Bool` | `bool` |
+| `void` | `void` |
+| `char*`, `const char*` | `char*` |
+| Unknown types, structs | `void*` |
+
+4. Functions prefixed with `_` and `static` functions are filtered out
+5. Variadic functions (like `printf`) are supported
+
+#### Header Search Paths
+
+Use `-I` to add directories where the compiler should look for headers:
+
+```sh
+lplc app.lpl -o app -I/opt/homebrew/include -I./vendor/include
+```
+
+These paths are passed to both `clang` (for AST extraction) and the linker.
 
 ### Complete Example: POSIX File I/O
 
@@ -2324,6 +2411,57 @@ int ds = dict.size();          // 1
 
 Supported instantiations: `List<int>`, `List<string>`, `Map<string, int>`, `Map<string, string>`.
 
+### Memory (`<memory.lph>`)
+
+Raw memory allocation and manipulation:
+
+```
+include <memory.lph>;
+
+// Allocate zero-initialized memory (like calloc)
+long count = 100;
+long size = 4;
+void* buf = Memory.alloc(count, size);    // 100 ints, all zeroed
+
+// Cast to typed pointer for access
+int* arr = buf as int*;
+arr[0] = 42;
+
+// Copy data between buffers
+void* buf2 = Memory.alloc(count, size);
+long copyBytes = 400;
+Memory.copy(buf2, buf, copyBytes);
+
+// Compare memory regions
+int cmp = Memory.compare(buf, buf2, copyBytes);    // 0 if equal
+
+// Zero out a buffer
+Memory.zero(buf, copyBytes);
+
+// Fill with a byte value
+long fillSize = 4;
+Memory.set(buf, 255, fillSize);
+
+// Resize an allocation
+long newSize = 800;
+buf = Memory.realloc(buf, newSize);
+
+// Free with delete
+delete buf;
+delete buf2;
+```
+
+| Method | Description |
+|--------|-------------|
+| `Memory.alloc(count, size)` | Allocate `count * size` bytes, zero-initialized (like `calloc`) |
+| `Memory.realloc(ptr, size)` | Resize an allocation to `size` bytes |
+| `Memory.copy(dest, src, size)` | Copy `size` bytes from `src` to `dest` |
+| `Memory.set(dest, value, size)` | Fill `size` bytes with byte `value` |
+| `Memory.zero(dest, size)` | Zero out `size` bytes |
+| `Memory.compare(a, b, size)` | Compare `size` bytes; returns 0 if equal |
+
+Buffers returned by `Memory.alloc` and `Memory.realloc` are freed with the `delete` keyword, just like any other heap-allocated object.
+
 ### Synchronization (`<sync.lph>`)
 
 Thread synchronization primitives:
@@ -2379,6 +2517,12 @@ lplc source.lpl -S -o source.s
 | `-g` | Emit debug information |
 | `-O0` to `-O3` | Optimization level |
 | `-target <triple>` | LLVM target triple for cross-compilation |
+| `-l<name>` | Link against library (e.g., `-lsqlite3`) |
+| `-L<path>` | Add library search path |
+| `-I<path>` | Add header search path (for C `#include` resolution) |
+| `-static` | Force static linking |
+| `-shared` | Produce a shared library |
+| `file.c` | Compile C source file with `clang -c` and link into binary |
 | `--dump-tokens` | Print lexer token stream (debug) |
 | `--dump-ast` | Print parsed AST (debug) |
 | `--check` | Parse and type-check only; output diagnostics as JSON |

@@ -1,0 +1,31 @@
+// Copyright 2026 London Sheard
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// This file is part of the LPL runtime library.
+// It is exempt from the Apache 2.0 license per the runtime exception
+// in the root LICENSE file.
+
+// memory.lph — Memory allocation and manipulation standard library header
+// Usage: include <memory.lph>;
+//
+// Provides the Memory class with static methods for raw memory operations.
+
+class Memory {
+    public static void* alloc(long count, long size) {}
+    public static void* realloc(void* ptr, long size) {}
+    public static void copy(void* dest, void* src, long size) {}
+    public static void set(void* dest, int value, long size) {}
+    public static void zero(void* dest, long size) {}
+    public static int compare(void* a, void* b, long size) {}
+}

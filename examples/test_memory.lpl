@@ -1,0 +1,84 @@
+include <console.lph>;
+include <memory.lph>;
+
+int main() {
+    // Allocate 10 ints, zero-initialized (like calloc)
+    long count = 10;
+    long intSize = 4;
+    void* buf = Memory.alloc(count, intSize);
+
+    // Cast to int* for typed access
+    int* arr = buf as int*;
+
+    // Verify zero-initialization
+    Console.print("Zero-initialized: ");
+    Console.printInt(arr[0]);
+    Console.print(" ");
+    Console.printInt(arr[4]);
+    Console.print(" ");
+    Console.printInt(arr[9]);
+    Console.println("");
+
+    // Write some values
+    arr[0] = 42;
+    arr[1] = 99;
+    arr[2] = 7;
+
+    Console.print("After write: ");
+    Console.printInt(arr[0]);
+    Console.print(" ");
+    Console.printInt(arr[1]);
+    Console.print(" ");
+    Console.printInt(arr[2]);
+    Console.println("");
+
+    // Allocate another buffer and copy data into it
+    void* buf2 = Memory.alloc(count, intSize);
+    long copySize = 12;
+    Memory.copy(buf2, buf, copySize);    // copy 3 ints = 12 bytes
+
+    int* arr2 = buf2 as int*;
+    Console.print("Copied: ");
+    Console.printInt(arr2[0]);
+    Console.print(" ");
+    Console.printInt(arr2[1]);
+    Console.print(" ");
+    Console.printInt(arr2[2]);
+    Console.println("");
+
+    // Compare the first 12 bytes — should be equal
+    int cmp = Memory.compare(buf, buf2, copySize);
+    Console.print("Compare (expect 0): ");
+    Console.printInt(cmp);
+    Console.println("");
+
+    // Zero out the first buffer
+    long totalSize = 40;
+    Memory.zero(buf, totalSize);
+    Console.print("After zero: ");
+    Console.printInt(arr[0]);
+    Console.print(" ");
+    Console.printInt(arr[1]);
+    Console.println("");
+
+    // Set all bytes to 0xFF
+    Memory.set(buf2, 255, intSize);
+    Console.print("After set 0xFF: ");
+    Console.printInt(arr2[0]);
+    Console.println("");
+
+    // Realloc to grow the buffer
+    long newSize = 80;
+    buf = Memory.realloc(buf, newSize);    // grow to 20 ints
+    arr = buf as int*;
+    arr[19] = 123;
+    Console.print("After realloc: ");
+    Console.printInt(arr[19]);
+    Console.println("");
+
+    // Free both buffers using delete
+    delete buf;
+    delete buf2;
+
+    return 0;
+}
