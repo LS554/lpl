@@ -37,6 +37,8 @@ struct FuncInfo {
     std::vector<Param> params;
     bool isExtern = false;
     bool isVariadic = false;
+    bool isSquib = false;
+    bool squibUsed = false;
 };
 
 class Sema {
@@ -66,6 +68,8 @@ private:
     struct VarInfo {
         TypeSpec type;
         bool isConst = false;
+        bool isSquib = false;
+        bool squibUsed = false; // true after first use of a squib variable
     };
     struct Scope {
         std::unordered_map<std::string, VarInfo> vars;
@@ -104,8 +108,9 @@ private:
 
     void pushScope();
     void popScope();
-    void declareVar(const std::string& name, const TypeSpec& type, const SourceLoc& loc, bool isConst = false);
+    void declareVar(const std::string& name, const TypeSpec& type, const SourceLoc& loc, bool isConst = false, bool isSquib = false);
     TypeSpec* lookupVar(const std::string& name);
+    VarInfo* lookupVarInfo(const std::string& name);
     bool isVarConst(const std::string& name);
     bool isTypeValid(const TypeSpec& type);
     bool typesCompatible(const TypeSpec& target, const TypeSpec& source);

@@ -28,14 +28,14 @@ void Sema::error(const SourceLoc& loc, const std::string& msg) {
 void Sema::pushScope() { scopes.push_back({}); }
 void Sema::popScope() { scopes.pop_back(); }
 
-void Sema::declareVar(const std::string& name, const TypeSpec& type, const SourceLoc& loc, bool isConst) {
+void Sema::declareVar(const std::string& name, const TypeSpec& type, const SourceLoc& loc, bool isConst, bool isSquib) {
     if (!scopes.empty()) {
         auto& scope = scopes.back();
         if (scope.vars.count(name)) {
             error(loc, "variable '" + name + "' already declared in this scope");
             return;
         }
-        scope.vars[name] = {type, isConst};
+        scope.vars[name] = {type, isConst, isSquib, false};
     }
 }
 
@@ -64,6 +64,14 @@ bool Sema::isVarConst(const std::string& name) {
         if (it != scopes[i].vars.end()) return it->second.isConst;
     }
     return false;
+}
+
+Sema::VarInfo* Sema::lookupVarInfo(const std::string& name) {
+    for (int i = (int)scopes.size() - 1; i >= 0; i--) {
+        auto it = scopes[i].vars.find(name);
+        if (it != scopes[i].vars.end()) return &it->second;
+    }
+    return nullptr;
 }
 
 const ClassInfo* Sema::lookupClass(const std::string& name) const {
@@ -246,6 +254,7 @@ void Sema::registerDeclarations(Program& prog) {
             FuncInfo fi;
             fi.returnType = fn->returnType;
             fi.params = fn->params;
+            fi.isSquib = fn->isSquib;
             functions[fn->qualifiedName()] = std::move(fi);
         } else if (auto ext = std::dynamic_pointer_cast<ExternBlockDecl>(decl)) {
             for (auto& ef : ext->functions) {
@@ -484,7 +493,7 @@ void Sema::analyzeStmt(Stmt& stmt) {
                     TypeSpec initType = analyzeExpr(*s.init);
                     s.type = initType; // replace auto with deduced type
                 }
-                declareVar(s.name, s.type, s.loc, s.isConst);
+                declareVar(s.name, s.type, s.loc, s.isConst, s.isSquib);
                 break;
             }
 
@@ -503,6 +512,9 @@ void Sema::analyzeStmt(Stmt& stmt) {
             if (s.isConst && !s.init) {
                 error(s.loc, "const variable '" + s.name + "' must be initialized");
             }
+            if (s.isSquib && !s.init) {
+                error(s.loc, "squib variable '" + s.name + "' must be initialized");
+            }
             if (s.init) {
                 TypeSpec initType = analyzeExpr(*s.init);
                 if (!typesCompatible(s.type, initType)) {
@@ -510,7 +522,7 @@ void Sema::analyzeStmt(Stmt& stmt) {
                           + "' with '" + initType.toString() + "'");
                 }
             }
-            declareVar(s.name, s.type, s.loc, s.isConst);
+            declareVar(s.name, s.type, s.loc, s.isConst, s.isSquib);
             break;
         }
         case Stmt::Return: {
@@ -691,6 +703,15 @@ TypeSpec Sema::analyzeExpr(Expr& expr) {
             TypeSpec* v = lookupVar(e.name);
             if (v) {
                 result = *v;
+                // Enforce squib: one-time use
+                VarInfo* vi = lookupVarInfo(e.name);
+                if (vi && vi->isSquib) {
+                    if (vi->squibUsed) {
+                        error(expr.loc, "squib variable '" + e.name + "' has already been used");
+                    } else {
+                        vi->squibUsed = true;
+                    }
+                }
             } else if (lookupClass(e.name)) {
                 // Class name used as type reference (for static calls etc.)
                 result.kind = TypeSpec::ClassName;
@@ -862,6 +883,17 @@ TypeSpec Sema::analyzeExpr(Expr& expr) {
                         }
                         if (!fi->isVariadic && e.args.size() < minArgs) {
                             error(expr.loc, "too few arguments to function '" + e.callee + "'");
+                        }
+                        // Enforce squib: one-time use
+                        if (fi->isSquib) {
+                            auto it = functions.find(e.callee);
+                            if (it != functions.end()) {
+                                if (it->second.squibUsed) {
+                                    error(expr.loc, "squib function '" + e.callee + "' has already been called");
+                                } else {
+                                    it->second.squibUsed = true;
+                                }
+                            }
                         }
                     } else {
                         error(expr.loc, "undeclared function '" + e.callee + "'");

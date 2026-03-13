@@ -391,6 +391,7 @@ struct VarDeclStmt : Stmt {
     std::string name;
     ExprPtr init; // may be null
     bool isConst = false;
+    bool isSquib = false;
     VarDeclStmt(TypeSpec t, std::string n, ExprPtr i, SourceLoc l)
         : Stmt(VarDecl, l), type(std::move(t)), name(std::move(n)), init(std::move(i)) {}
 };
@@ -603,6 +604,7 @@ struct FunctionDecl : Decl {
     std::vector<std::string> typeParams; // generic type parameters, e.g. <T>
     std::vector<Param> params;
     std::shared_ptr<BlockStmt> body;
+    bool isSquib = false;
 
     std::string qualifiedName() const {
         return namespacePath.empty() ? name : namespacePath + "." + name;
@@ -815,6 +817,7 @@ inline StmtPtr cloneStmt(const StmtPtr& s) {
             auto& x = static_cast<VarDeclStmt&>(*s);
             auto r = std::make_shared<VarDeclStmt>(x.type, x.name, cloneExpr(x.init), x.loc);
             r->isConst = x.isConst;
+            r->isSquib = x.isSquib;
             return r;
         }
         case Stmt::Return: {

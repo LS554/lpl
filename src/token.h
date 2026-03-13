@@ -91,6 +91,7 @@ enum class TokenType {
     KW_override,
     KW_abstract,
     KW_super,
+    KW_squib,
 
     // Keywords - Exception handling
     KW_try,
@@ -231,6 +232,7 @@ inline const std::unordered_map<std::string, TokenType>& getKeywordMap() {
         {"operator",   TokenType::KW_operator},
         {"func",       TokenType::KW_func},
         {"auto",       TokenType::KW_auto},
+        {"squib",      TokenType::KW_squib},
     };
     return kw;
 }

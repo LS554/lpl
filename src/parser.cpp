@@ -315,14 +315,16 @@ Program Parser::parse() {
                 prog.declarations.push_back(decl);
             } else if (check(TokenType::KW_extern)) {
                 prog.declarations.push_back(parseExternBlock());
-            } else if (isTypeStart()) {
-                // Function declaration: type name(...)
+            } else if (check(TokenType::KW_squib) || isTypeStart()) {
+                // Function declaration: [squib] type name(...)
+                bool fnSquib = match(TokenType::KW_squib);
                 TypeSpec retType = parseType();
                 std::string name = expect(TokenType::Identifier, "function name").value;
                 auto decl = parseFunctionDecl(attrs, retType, name);
-                if (!currentNamespace_.empty()) {
-                    auto fn = std::dynamic_pointer_cast<FunctionDecl>(decl);
-                    if (fn && fn->namespacePath.empty())
+                auto fn = std::dynamic_pointer_cast<FunctionDecl>(decl);
+                if (fn) {
+                    fn->isSquib = fnSquib;
+                    if (!currentNamespace_.empty() && fn->namespacePath.empty())
                         fn->namespacePath = currentNamespace_;
                 }
                 prog.declarations.push_back(decl);
@@ -887,12 +889,16 @@ StmtPtr Parser::parseBlock() {
 StmtPtr Parser::parseVarDeclOrExprStmt() {
     SourceLoc loc = peek().loc;
 
-    // Try to detect variable declaration: [const] [owner] type name = ...
-    // Heuristic: if it starts with a type keyword (or 'owner' or 'const'), it's a var decl
+    // Try to detect variable declaration: [squib] [const] [owner] type name = ...
+    // Heuristic: if it starts with a type keyword (or 'owner', 'const', 'squib'), it's a var decl
     bool looksLikeVarDecl = false;
     bool isConst = false;
+    bool isSquib = false;
 
-    if (check(TokenType::KW_const)) {
+    if (check(TokenType::KW_squib)) {
+        looksLikeVarDecl = true;
+        isSquib = true;
+    } else if (check(TokenType::KW_const)) {
         looksLikeVarDecl = true;
         isConst = true;
     } else if (check(TokenType::KW_owner)) {
@@ -970,7 +976,13 @@ StmtPtr Parser::parseVarDeclOrExprStmt() {
     }
 
     if (looksLikeVarDecl) {
-        if (isConst) advance(); // consume 'const'
+        if (isSquib) advance(); // consume 'squib'
+        if (check(TokenType::KW_const)) {
+            isConst = true;
+            advance(); // consume 'const'
+        } else if (isConst) {
+            advance(); // consume 'const'
+        }
         TypeSpec type = parseType();
         std::string name = expect(TokenType::Identifier, "variable name").value;
         ExprPtr init = nullptr;
@@ -980,6 +992,7 @@ StmtPtr Parser::parseVarDeclOrExprStmt() {
         expect(TokenType::Semicolon, "';'");
         auto decl = std::make_shared<VarDeclStmt>(std::move(type), std::move(name), std::move(init), loc);
         decl->isConst = isConst;
+        decl->isSquib = isSquib;
         return decl;
     }
 

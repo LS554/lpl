@@ -1,0 +1,31 @@
+include <console.lph>;
+
+// squib function: can only be called once
+squib void initSystem() {
+    Console.println("System initialized (one-time setup)");
+}
+
+// squib function returning a value
+squib int getSecret() {
+    return 42;
+}
+
+int main() {
+    // squib variable: can only be used once
+    squib int token = 99;
+    Console.printInt(token);    // OK: first use
+    Console.println("");
+
+    // squib const variable
+    squib const int key = 7;
+    Console.printInt(key);      // OK: first use
+    Console.println("");
+
+    // squib function calls
+    initSystem();               // OK: first call
+    int secret = getSecret();   // OK: first call
+    Console.printInt(secret);
+    Console.println("");
+
+    return 0;
+}
