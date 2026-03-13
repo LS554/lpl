@@ -156,6 +156,7 @@ enum class TokenType {
 
     // Special
     Ellipsis,   // ...
+    Hash,       // #
 
     // Meta
     Eof,

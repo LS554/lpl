@@ -1,0 +1,12 @@
+// Test: C header inclusion — non-string functions
+extern "C" {
+    #include <stdlib.h>
+    int puts(char* s);
+}
+
+int main() {
+    int x = abs(-42);
+    int y = atoi("123");
+    puts("works!");
+    return x - 42;
+}

@@ -1,0 +1,9 @@
+// Test: linking a C source file, verify return value
+extern "C" {
+    #include "mylib.h"
+}
+
+int main() {
+    int sum = add(10, 32);
+    return sum - 42;
+}

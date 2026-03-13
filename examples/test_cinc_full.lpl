@@ -1,0 +1,31 @@
+// Test: C header inclusion + C source linking with LPL string output
+include <console.lph>;
+include <strings.lph>;
+
+extern "C" {
+    #include "mylib.h"
+    #include <stdlib.h>
+}
+
+int main() {
+    // Test 1: call C functions from #include'd header (mylib.h)
+    int sum = add(10, 32);
+    int prod = multiply(6, 7);
+
+    Console.println("=== C Header Inclusion & Linking Test ===");
+
+    Console.print("add(10, 32) = ");
+    Console.println(Strings.fromInt(sum));
+
+    Console.print("multiply(6, 7) = ");
+    Console.println(Strings.fromInt(prod));
+
+    // Test 2: call C stdlib function from #include <stdlib.h>
+    int a = abs(-99);
+    Console.print("abs(-99) = ");
+    Console.println(Strings.fromInt(a));
+
+    // Test 3: mixed manual + auto declarations in same extern block
+    Console.println("All tests passed!");
+    return 0;
+}

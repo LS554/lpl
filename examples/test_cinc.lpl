@@ -1,0 +1,12 @@
+// Test: C header inclusion in extern "C" block
+extern "C" {
+    #include <stdio.h>
+    #include <stdlib.h>
+}
+
+int main() {
+    printf("Hello from C's printf via #include <stdio.h>!\n");
+    int x = abs(-42);
+    printf("abs(-42) = %d\n", x);
+    return 0;
+}

@@ -287,6 +287,8 @@ std::vector<Token> Lexer::tokenize() {
                 if (peek() == ':') { advance(); tokens.push_back(makeToken(TokenType::ColonColon, "::", loc)); }
                 else tokens.push_back(makeToken(TokenType::Colon, ":", loc));
                 break;
+            case '#':
+                tokens.push_back(makeToken(TokenType::Hash, "#", loc)); break;
             default:
                 tokens.push_back(makeToken(TokenType::Error, std::string(1, c), loc));
                 break;

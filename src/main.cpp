@@ -81,7 +81,7 @@ static std::string getSourceDir(const std::string& sourceFile) {
 }
 
 static void printUsage(const char* prog) {
-    std::cerr << "Usage: " << prog << " <source files> [options]\n"
+    std::cerr << "Usage: " << prog << " <source.lpl> [file.c ...] [options]\n"
               << "\nOptions:\n"
               << "  -o <name>           Output file name\n"
               << "  -target <triple>    LLVM target triple\n"
@@ -95,6 +95,11 @@ static void printUsage(const char* prog) {
               << "  --dump-tokens       Dump lexer tokens\n"
               << "  --dump-ast          Dump AST (placeholder)\n"
               << "  --check             Check for errors (no codegen), output JSON diagnostics\n"
+              << "  -I<path>            Add header search path for C #include resolution\n"
+              << "  -L<path>            Add library search path\n"
+              << "  -l<name>            Link against library\n"
+              << "  -static             Force static linking\n"
+              << "  -shared             Produce a shared library\n"
               << "  -h, --help          Show this help\n";
 }
 
@@ -115,7 +120,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::vector<std::string> sourceFiles;
+    std::vector<std::string> lplFiles;    // .lpl source files
+    std::vector<std::string> cFiles;      // .c source files to compile
     std::string outputName = "a.out";
     std::string targetTriple = llvm::sys::getDefaultTargetTriple();
     bool emitLLVM = false;
@@ -124,7 +130,12 @@ int main(int argc, char** argv) {
     bool dumpTokens = false;
     bool dumpAST = false;
     bool checkOnly = false;
+    bool staticLink = false;
+    bool sharedLib = false;
     int optLevel = 0;
+    std::vector<std::string> extraLibPaths;  // from -L flags
+    std::vector<std::string> extraLibs;      // from -l flags
+    std::vector<std::string> extraIncPaths;  // from -I flags
 
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
@@ -146,19 +157,42 @@ int main(int argc, char** argv) {
         else if (arg == "--dump-tokens") { dumpTokens = true; }
         else if (arg == "--dump-ast") { dumpAST = true; }
         else if (arg == "--check") { checkOnly = true; }
-        else if (arg == "-h" || arg == "--help") {
+        else if (arg == "-static") { staticLink = true; }
+        else if (arg == "-shared") { sharedLib = true; }
+        else if (arg.size() > 2 && arg.substr(0, 2) == "-L") {
+            extraLibPaths.push_back(arg.substr(2));
+        } else if (arg == "-L" && i + 1 < argc) {
+            extraLibPaths.push_back(argv[++i]);
+        } else if (arg.size() > 2 && arg.substr(0, 2) == "-l") {
+            extraLibs.push_back(arg.substr(2));
+        } else if (arg == "-l" && i + 1 < argc) {
+            extraLibs.push_back(argv[++i]);
+        } else if (arg.size() > 2 && arg.substr(0, 2) == "-I") {
+            extraIncPaths.push_back(arg.substr(2));
+        } else if (arg == "-I" && i + 1 < argc) {
+            extraIncPaths.push_back(argv[++i]);
+        } else if (arg == "-h" || arg == "--help") {
             printUsage(argv[0]);
             return 0;
         } else if (arg[0] == '-') {
             std::cerr << "error: unknown option '" << arg << "'\n";
             return 1;
+        } else if (arg.size() >= 2 && arg.substr(arg.size() - 2) == ".c") {
+            cFiles.push_back(arg);
         } else {
-            sourceFiles.push_back(arg);
+            lplFiles.push_back(arg);
         }
     }
 
-    if (sourceFiles.empty()) {
+    // For backwards compat: treat all non-.c inputs as LPL files
+    std::vector<std::string>& sourceFiles = lplFiles;
+
+    if (sourceFiles.empty() && cFiles.empty()) {
         std::cerr << "error: no input files\n";
+        return 1;
+    }
+    if (sourceFiles.empty()) {
+        std::cerr << "error: no .lpl source file provided\n";
         return 1;
     }
 
@@ -206,6 +240,7 @@ int main(int argc, char** argv) {
     std::string stdlibDir = getStdlibDir();
     std::string srcDir = getSourceDir(primaryFile);
     IncludeResolver resolver({stdlibDir}, srcDir);
+    resolver.setExtraIncludePaths(extraIncPaths);
     if (!resolver.resolve(program)) {
         for (auto& err : resolver.getErrors()) {
             allErrors.push_back(err);
@@ -361,17 +396,74 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // Full pipeline: emit object then link
+    // Full pipeline: emit LPL object then link
+
+    // Compile any .c source files via clang first
+    std::vector<std::string> cObjFiles;
+    for (auto& cFile : cFiles) {
+        std::string cObj = cFile + ".o";
+        std::string cCmd = "clang -c " + cFile + " -o " + cObj;
+        for (auto& p : extraIncPaths) {
+            cCmd += " -I" + p;
+        }
+        std::cout << "compiling: " << cCmd << "\n";
+        int cResult = system(cCmd.c_str());
+        if (cResult != 0) {
+            std::cerr << "error: failed to compile C source '" << cFile << "'\n";
+            return 1;
+        }
+        cObjFiles.push_back(cObj);
+    }
+
     codegen.emitObjectFile(objFile);
 
     // Link with system compiler/linker
     std::string compilerDir = getCompilerDir();
     std::string runtimeDir = compilerDir + "/../runtime";
-    // Build link command — only link runtime modules that were actually included
-    std::string linkCmd = "cc " + objFile + " -o " + outputName;
+
+    // GPL compliance: warn when statically linking known GPL libraries.
+    // Dynamic linking (the default) naturally avoids GPL derivative issues.
+    if (staticLink && !extraLibs.empty()) {
+        static const std::vector<std::string> knownGPL = {
+            "readline", "gmp", "bfd", "gnutls", "ffmpeg",
+            "avcodec", "avformat", "avutil", "swscale",
+            "x264", "x265", "fftw3",
+        };
+        for (auto& lib : extraLibs) {
+            for (auto& gpl : knownGPL) {
+                if (lib == gpl) {
+                    std::cerr << "warning: statically linking GPL library '-l" << lib
+                              << "' — the resulting binary is a GPL derivative\n";
+                }
+            }
+        }
+    }
+
+    // Start building link command
+    std::string linkCmd = "cc";
+    if (sharedLib) linkCmd += " -shared";
+    if (staticLink) linkCmd += " -static";
+
+    // LPL object file
+    linkCmd += " " + objFile;
+
+    // Extra C object files
+    for (auto& co : cObjFiles) {
+        linkCmd += " " + co;
+    }
+
+    linkCmd += " -o " + outputName;
+
+    // Runtime library search paths
     linkCmd += " -L" + runtimeDir;
     linkCmd += " -L" + compilerDir;
     linkCmd += " -L.";
+
+    // User-supplied library search paths (-L flags)
+    for (auto& lp : extraLibPaths) {
+        linkCmd += " -L" + lp;
+    }
+
     auto& usedMods = resolver.usedModules();
     // Link per-module stdlib libraries first (compiled from .lpl)
     for (auto& mod : usedMods) {
@@ -380,20 +472,33 @@ int main(int argc, char** argv) {
     // Core runtime + platform helpers last (resolves symbols used by modules)
     linkCmd += " -llplrt";
     linkCmd += " -lc";
+
+    // User-supplied library links (-l flags)
+    for (auto& lib : extraLibs) {
+        linkCmd += " -l" + lib;
+    }
+
     // Link C++ standard library if any extern "C++" blocks were used
     if (codegen.requiresCppLink()) {
         linkCmd += " -lc++";
     }
-    // Strip dead code and symbols for smaller binaries
-    linkCmd += " -Wl,-dead_strip";
-    if (optLevel > 0) {
-        linkCmd += " -Wl,-x"; // strip local symbols
+
+    // Strip dead code and symbols for smaller binaries (not when building shared libs)
+    if (!sharedLib && !staticLink) {
+        linkCmd += " -Wl,-dead_strip";
+        if (optLevel > 0) {
+            linkCmd += " -Wl,-x"; // strip local symbols
+        }
     }
+
     std::cout << "linking: " << linkCmd << "\n";
     int linkResult = system(linkCmd.c_str());
 
-    // Clean up temp object file
+    // Clean up temp object files
     std::remove(objFile.c_str());
+    for (auto& co : cObjFiles) {
+        std::remove(co.c_str());
+    }
 
     if (linkResult != 0) {
         std::cerr << "error: linking failed\n";

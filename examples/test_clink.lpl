@@ -1,0 +1,13 @@
+// Test: linking a C source file with #include of its header
+extern "C" {
+    #include "mylib.h"
+    int printf(char* fmt, ...);
+}
+
+int main() {
+    int sum = add(10, 32);
+    int prod = multiply(6, 7);
+    printf("add(10, 32) = %d\n", sum);
+    printf("multiply(6, 7) = %d\n", prod);
+    return 0;
+}

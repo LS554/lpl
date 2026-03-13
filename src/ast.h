@@ -620,8 +620,15 @@ struct ExternFuncDecl {
     SourceLoc loc;
 };
 
+struct ExternCInclude {
+    std::string path;       // the header path as written, e.g. "mylib.h" or "stdio.h"
+    bool isSystem = false;  // true for <...>, false for "..."
+    SourceLoc loc;
+};
+
 struct ExternBlockDecl : Decl {
     std::string convention; // "C" or "C++"
+    std::vector<ExternCInclude> cincludes; // #include directives inside this block
     std::vector<ExternFuncDecl> functions;
 
     ExternBlockDecl(SourceLoc l) : Decl(ExternBlock, l) {}

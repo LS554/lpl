@@ -760,6 +760,41 @@ DeclPtr Parser::parseExternBlock() {
     expect(TokenType::LBrace, "'{'");
 
     while (!check(TokenType::RBrace) && !atEnd()) {
+        // Handle #include directives inside extern "C" blocks
+        if (check(TokenType::Hash)) {
+            SourceLoc incLoc = peek().loc;
+            advance(); // consume '#'
+            if (!check(TokenType::KW_include)) {
+                error(std::string(incLoc.file) + ":" + std::to_string(incLoc.line)
+                      + ": error: expected 'include' after '#' in extern block");
+                while (!check(TokenType::RBrace) && !atEnd()) advance();
+                break;
+            }
+            advance(); // consume 'include'
+            ExternCInclude inc;
+            inc.loc = incLoc;
+            if (check(TokenType::Lt)) {
+                advance(); // consume '<'
+                inc.isSystem = true;
+                std::string path;
+                while (!check(TokenType::Gt) && !check(TokenType::RBrace) && !atEnd()) {
+                    path += advance().value;
+                }
+                expect(TokenType::Gt, "'>'");
+                inc.path = path;
+            } else if (check(TokenType::StringLiteral)) {
+                inc.path = advance().value;
+                inc.isSystem = false;
+            } else {
+                error(std::string(incLoc.file) + ":" + std::to_string(incLoc.line)
+                      + ": error: expected '<...>' or '\"...\"' after #include");
+                while (!check(TokenType::RBrace) && !atEnd()) advance();
+                break;
+            }
+            block->cincludes.push_back(std::move(inc));
+            continue;
+        }
+
         ExternFuncDecl efd;
         efd.loc = peek().loc;
         efd.returnType = parseType();

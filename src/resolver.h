@@ -29,8 +29,14 @@ public:
     IncludeResolver(const std::vector<std::string>& searchPaths,
                     const std::string& sourceDir);
 
+    // Set extra header search paths (from -I flags) used when resolving
+    // #include directives inside extern "C" blocks.
+    void setExtraIncludePaths(const std::vector<std::string>& paths);
+
     // Process all IncludeDecl nodes in the program.
     // Replaces them with the declarations from the included files.
+    // Also resolves any #include directives inside extern "C"/"C++" blocks by
+    // invoking clang to extract function signatures.
     // Returns false on error.
     bool resolve(Program& prog);
 
@@ -44,6 +50,7 @@ public:
 private:
     std::vector<std::string> searchPaths;
     std::string sourceDir;
+    std::vector<std::string> extraIncludePaths; // from -I flags
     std::vector<std::string> errors;
     std::unordered_set<std::string> included; // already-included paths (dedup)
     std::unordered_set<std::string> modules;  // stdlib module names
@@ -54,4 +61,12 @@ private:
     // Parse a .lph file and return its declarations
     std::vector<DeclPtr> parseHeader(const std::string& resolvedPath,
                                      const std::string& originalPath);
+
+    // Resolve #include directives inside all extern blocks in the program.
+    // Calls clang to extract C function signatures and adds them to the block.
+    void resolveExternCIncludes(Program& prog);
+
+    // Parse a C header file using clang -ast-dump=json and return extern
+    // function declarations that can be imported into the LPL symbol table.
+    std::vector<ExternFuncDecl> parseCHeader(const std::string& path, bool isSystem);
 };
