@@ -16,7 +16,7 @@
 // It is exempt from the Apache 2.0 license per the runtime exception
 // in the root LICENSE file.
 
-// Strings — string utility operations
+// String — string utility operations
 // Compiled to liblpl_string.a by lplc
 
 extern "C" {
