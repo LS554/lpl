@@ -224,6 +224,10 @@ void CodeGen::declareRuntimeFunctions() {
     auto strDestroyTy = llvm::FunctionType::get(voidTy, {ptr}, false);
     getOrDeclareRuntimeFunc("__lpl_string_destroy", strDestroyTy);
 
+    // __lpl_string_equal(a: LPLString*, b: LPLString*) -> i8
+    auto strEqualTy = llvm::FunctionType::get(llvm::Type::getInt8Ty(context), {ptr, ptr}, false);
+    getOrDeclareRuntimeFunc("__lpl_string_equal", strEqualTy);
+
     // __lpl_int_to_string(result: LPLString*, val: i32)
     auto i2sTy = llvm::FunctionType::get(voidTy, {ptr, i32}, false);
     getOrDeclareRuntimeFunc("__lpl_int_to_string", i2sTy);
@@ -1273,6 +1277,7 @@ void CodeGen::generateWhile(WhileStmt& stmt) {
     builder.SetInsertPoint(condBB);
 
     auto cond = generateExpr(*stmt.condition);
+    if (!cond) { builder.CreateBr(exitBB); return; }
     if (cond->getType() != llvm::Type::getInt1Ty(context)) {
         cond = builder.CreateICmpNE(cond,
                                     llvm::Constant::getNullValue(cond->getType()), "whilecond");
@@ -2160,6 +2165,24 @@ llvm::Value* CodeGen::generateBinary(BinaryExpr& expr) {
          expr.right->resolvedType.kind == TypeSpec::String)) {
         // Ensure both are strings (TODO: convert non-strings)
         return generateStringConcat(left, right);
+    }
+
+    // String equality / inequality
+    if ((expr.op == TokenType::EqEq || expr.op == TokenType::BangEq) &&
+        expr.left->resolvedType.kind == TypeSpec::String &&
+        expr.right->resolvedType.kind == TypeSpec::String) {
+        auto equalFn = functionMap["__lpl_string_equal"];
+        auto leftPtr = createEntryBlockAlloca(currentFunction, left->getType(), "streq.l");
+        builder.CreateStore(left, leftPtr);
+        auto rightPtr = createEntryBlockAlloca(currentFunction, right->getType(), "streq.r");
+        builder.CreateStore(right, rightPtr);
+        auto result = builder.CreateCall(equalFn, {leftPtr, rightPtr}, "streq");
+        auto boolResult = builder.CreateICmpNE(result,
+            llvm::ConstantInt::get(llvm::Type::getInt8Ty(context), 0), "streq.bool");
+        if (expr.op == TokenType::BangEq) {
+            boolResult = builder.CreateNot(boolResult, "strne.bool");
+        }
+        return boolResult;
     }
 
     // Floating point operations

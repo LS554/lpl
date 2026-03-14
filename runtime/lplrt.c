@@ -69,6 +69,12 @@ void __lpl_string_concat(LPLString* result, const LPLString* a, const LPLString*
     }
 }
 
+int8_t __lpl_string_equal(const LPLString* a, const LPLString* b) {
+    if (a->length != b->length) return 0;
+    if (a->length == 0) return 1;
+    return memcmp(a->data, b->data, (size_t)a->length) == 0 ? 1 : 0;
+}
+
 void __lpl_int_to_string(LPLString* out, int32_t val) {
     char buf[32];
     int len = snprintf(buf, sizeof(buf), "%d", val);

@@ -21,6 +21,7 @@
 
 extern "C" {
     string __lpl_files_read_file(string path);
+    string __lpl_files_read_by_line(string path);
     void __lpl_files_write_file(string path, string content);
     void __lpl_files_append_file(string path, string content);
     bool __lpl_files_file_exists(string path);
@@ -37,6 +38,10 @@ class File {
 
     public string read() {
         return __lpl_files_read_file(this.path);
+    }
+
+    public string readByLine() {
+        return __lpl_files_read_by_line(this.path);
     }
 
     public void write(string content) {
@@ -61,6 +66,7 @@ class File {
     public static string readAll(string path) {
         return __lpl_files_read_file(path);
     }
+
 
     public static void writeAll(string path, string content) {
         __lpl_files_write_file(path, content);

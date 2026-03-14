@@ -1,0 +1,12 @@
+include <files>;
+include <console>;
+
+int main() {
+    File f = File("README.md");
+    string line = f.readByLine();
+    while (line != "a") {
+        Console.println(line);
+        line = f.readByLine();
+    }
+    return 0;
+}

@@ -57,6 +57,76 @@ void __lpl_files_read_file(LPLString* result, LPLString* path) {
     fclose(fp);
 }
 
+#define MAX_LINE_READERS 16
+
+static struct {
+    char* path;
+    FILE* fp;
+    char* buf;
+    long  bufsz;
+} _readers[MAX_LINE_READERS];
+static int _reader_count = 0;
+
+static int _find_reader(const char* path) {
+    for (int i = 0; i < _reader_count; i++) {
+        if (_readers[i].path && strcmp(_readers[i].path, path) == 0)
+            return i;
+    }
+    return -1;
+}
+
+static void _close_reader(int idx) {
+    fclose(_readers[idx].fp);
+    free(_readers[idx].buf);
+    free(_readers[idx].path);
+    _readers[idx] = _readers[--_reader_count];
+}
+
+void __lpl_files_read_by_line(LPLString* result, LPLString* path) {
+    char* cpath = _to_cstr(path);
+    if (!cpath) { __lpl_string_create(result, "", 0); return; }
+
+    int idx = _find_reader(cpath);
+
+    // Open a new reader for this path
+    if (idx < 0) {
+        if (_reader_count >= MAX_LINE_READERS) {
+            free(cpath);
+            __lpl_string_create(result, "", 0);
+            return;
+        }
+        FILE* fp = fopen(cpath, "r");
+        if (!fp) { free(cpath); __lpl_string_create(result, "", 0); return; }
+        fseek(fp, 0, SEEK_END);
+        long sz = ftell(fp);
+        rewind(fp);
+        char* buf = (char*)malloc((size_t)sz + 1);
+        if (!buf) { fclose(fp); free(cpath); __lpl_string_create(result, "", 0); return; }
+        idx = _reader_count++;
+        _readers[idx].path = cpath;
+        _readers[idx].fp = fp;
+        _readers[idx].buf = buf;
+        _readers[idx].bufsz = sz;
+    } else {
+        free(cpath);
+    }
+
+    // Read next line
+    int ci, len = 0;
+    while ((ci = fgetc(_readers[idx].fp)) != '\n' && ci != EOF) {
+        _readers[idx].buf[len++] = (char)ci;
+    }
+
+    // EOF — close and clean up
+    if (ci == EOF && len == 0) {
+        __lpl_string_create(result, "", 0);
+        _close_reader(idx);
+        return;
+    }
+
+    __lpl_string_create(result, _readers[idx].buf, len);
+}
+
 void __lpl_files_write_file(LPLString* path, LPLString* content) {
     char* cpath = _to_cstr(path);
     if (!cpath) return;

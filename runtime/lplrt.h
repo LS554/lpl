@@ -45,6 +45,9 @@ void __lpl_string_destroy(LPLString* s);
 /* Concatenate two strings into result */
 void __lpl_string_concat(LPLString* result, const LPLString* a, const LPLString* b);
 
+/* Compare two strings for equality (returns 1 if equal, 0 otherwise) */
+int8_t __lpl_string_equal(const LPLString* a, const LPLString* b);
+
 /* Convert int to string */
 void __lpl_int_to_string(LPLString* out, int32_t val);
 
