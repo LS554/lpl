@@ -4,9 +4,10 @@ include <console>;
 int main() {
     File f = File("README.md");
     string line = f.readByLine();
-    while (line != "a") {
+    while (line != "") {
         Console.println(line);
         line = f.readByLine();
     }
+    f.close();
     return 0;
 }
