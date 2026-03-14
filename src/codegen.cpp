@@ -459,13 +459,18 @@ bool CodeGen::generate(Program& prog) {
                 userMainParams = fn->params;
             }
             std::vector<llvm::Type*> paramTypes;
+            auto retTy = getLLVMType(fn->returnType);
+            bool hasSret = retTy->isStructTy();
+            if (hasSret) {
+                paramTypes.push_back(llvm::PointerType::get(context, 0)); // sret
+            }
             for (auto& p : fn->params) {
                 auto pt = getLLVMType(p.type);
                 if (pt->isStructTy()) paramTypes.push_back(llvm::PointerType::get(context, 0));
                 else paramTypes.push_back(pt);
             }
-            auto retTy = getLLVMType(fn->returnType);
-            auto ft = llvm::FunctionType::get(retTy, paramTypes, false);
+            auto funcRetTy = hasSret ? llvm::Type::getVoidTy(context) : retTy;
+            auto ft = llvm::FunctionType::get(funcRetTy, paramTypes, false);
             auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                              mangleName(fn->qualifiedName()), *module);
             functionMap[mangleName(fn->qualifiedName())] = f;
@@ -850,6 +855,16 @@ void CodeGen::generateFunction(FunctionDecl& fn) {
     namedValues.clear();
 
     auto argIt = llvmFn->arg_begin();
+
+    // Handle sret for struct return
+    sretPtr_ = nullptr;
+    auto retLLVMTy = getLLVMType(fn.returnType);
+    if (retLLVMTy->isStructTy()) {
+        sretPtr_ = &*argIt;
+        sretPtr_->setName("sret");
+        argIt++;
+    }
+
     for (size_t i = 0; i < fn.params.size(); i++, argIt++) {
         auto& p = fn.params[i];
         argIt->setName(p.name);
@@ -877,12 +892,14 @@ void CodeGen::generateFunction(FunctionDecl& fn) {
     popCleanupScope();
 
     if (!builder.GetInsertBlock()->getTerminator()) {
-        if (fn.returnType.isVoid()) {
+        if (sretPtr_ || fn.returnType.isVoid()) {
             builder.CreateRetVoid();
         } else {
             builder.CreateRet(llvm::Constant::getNullValue(getLLVMType(fn.returnType)));
         }
     }
+
+    sretPtr_ = nullptr;
 }
 
 // ============================================================
