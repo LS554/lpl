@@ -26,6 +26,7 @@ extern "C" {
     string __lpl_system_getenv(string name);
     long __lpl_system_currentTimeMillis();
     void __lpl_system_sleep(int milliseconds);
+    int __lpl_system_exec(string cmd);
 }
 
 class System {
@@ -51,5 +52,9 @@ class System {
 
     public static void sleep(int milliseconds) {
         __lpl_system_sleep(milliseconds);
+    }
+
+    public static int exec(string cmd) {
+        return __lpl_system_exec(cmd);
     }
 }

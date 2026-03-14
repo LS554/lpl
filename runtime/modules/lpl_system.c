@@ -26,6 +26,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "cstr.h"
 
 extern int __lpl_get_argc(void);
 extern char** __lpl_get_argv(void);
@@ -76,4 +77,9 @@ void __lpl_system_sleep(int32_t milliseconds) {
     if (milliseconds > 0) {
         usleep((useconds_t)milliseconds * 1000);
     }
+}
+
+int __lpl_system_exec(LPLString* cmd) {
+    char* ccmd = _to_cstr(cmd);
+    return system(ccmd);
 }

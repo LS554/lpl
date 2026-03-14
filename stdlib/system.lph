@@ -28,4 +28,5 @@ class System {
     public static string getenv(string name) {}
     public static long currentTimeMillis() {}
     public static void sleep(int milliseconds) {}
+    public static int exec(string cmd) {}
 }

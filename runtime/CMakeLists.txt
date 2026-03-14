@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.16)
 # Core runtime + all platform C helpers (always linked)
 add_library(lplrt STATIC
     lplrt.c
+    modules/cstr.c
     modules/lpl_console.c
     modules/lpl_math.c
     modules/lpl_strings.c
